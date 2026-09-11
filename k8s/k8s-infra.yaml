@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: omniflow-core-service
+  labels:
+    app: omniflow-core
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8080
+      name: http
+  selector:
+    app: omniflow-core
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: omniflow-config
+data:
+  SPRING_PROFILES_ACTIVE: "prod"
+  SPRING_THREADS_VIRTUAL_ENABLED: "true"
+  AWS_REGION: "us-east-1"
+  SNS_TOPIC_NAME: "omniflow-transactions-topic"
+  SQS_QUEUE_NAME: "omniflow-settlement-queue"
+  S3_BUCKET_NAME: "omniflow-reconciliation-reports"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: omniflow-secrets
+type: Opaque
+stringData:
+  DB_USERNAME: "omniflow_user"
+  DB_PASSWORD: "omniflow_password"
+  MONGO_URI: "mongodb://mongo:27017/omniflow_audit"
+  JWT_SECRET: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: omniflow-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: omniflow-core
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 75
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80

@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: omniflow-core
+  labels:
+    app: omniflow-core
+    tier: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: omniflow-core
+  template:
+    metadata:
+      labels:
+        app: omniflow-core
+    spec:
+      containers:
+        - name: omniflow-core
+          image: omniflow-core:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: omniflow-config
+            - secretRef:
+                name: omniflow-secrets
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 15
