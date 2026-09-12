@@ -84,7 +84,7 @@ flowchart TD
     end
 
     subgraph Batch ["Spring Batch 5 Engine"]
-        BatchLauncher[ReconciliationBatchLauncher] -->|Paged Chunk 100| PG_Ledger
+        BatchLauncher[ReconciliationBatchLauncher] -->|Keyset Cursor / Chunk 100| PG_Ledger
         BatchLauncher --> S3[AWS S3: omniflow-reconciliation-reports]
     end
 ```
@@ -108,7 +108,7 @@ $$\sum \text{Debits} = \sum \text{Credits}$$
   ─────────────────────────────────────────────────────
   Net Zero-Sum Invariant                          0.00
   ```
-* Overdraft protection is verified on the domain entity; unauthorized negative balances throw `InsufficientFundsException`.
+* Overdraft protection is per-account, controlled by the `allowOverdraft` flag on `LedgerAccount`: accounts with `allowOverdraft = false` throw `InsufficientFundsException` on a resulting negative balance, while accounts explicitly flagged `allowOverdraft = true` (e.g. certain clearing/transit accounts) are permitted to go negative by design. This is a per-account policy, not a blanket rule across all account types.
 * Optimistic concurrency is verified via JPA `@Version` to prevent lost updates under race conditions.
 
 ### 2. Transactional Outbox with `FOR UPDATE SKIP LOCKED`
@@ -148,7 +148,7 @@ The current implementation uses a deterministic reasoning engine (`Deterministic
     3. Action requires permanent financial write-off or manual ledger adjustment.
   * Decision rationale, forensic evidence, and verdict are persisted immutably in MongoDB.
 
-### 5. High-Throughput Chunk-Based Spring Batch 5 Reconciliation
+### 5. Chunk-Based Spring Batch 5 Reconciliation
 * Scalable `ledgerItemReader` queries PostgreSQL in bounded pages of 100 records via Keyset Cursor pagination, ensuring bounded memory consumption proportional to the configured page/chunk size.
 * Stateless `@StepScope` writer and `ExecutionContextPromotionListener` accumulate audit metrics and forensic discrepancy evidence directly within the Spring Batch execution context, eliminating mutable state in singleton beans.
 * Uploads complete JSON reconciliation summaries directly to **AWS S3**, including execution status, audited counts, and bounded discrepancy breakdown (`discrepancies`).
@@ -282,6 +282,17 @@ layeredArchitecture()
     .whereLayer("Application").mayOnlyAccessLayers("Domain")
     .whereLayer("Infrastructure").mayOnlyAccessLayers("Application", "Domain");
 ```
+
+### Verification
+
+The following scenarios are covered by the automated test suite (`./mvnw clean test` or `mvnw.cmd clean test` on Windows). This list documents *what is tested*, not a claim that a full run has been captured in CI yet — run the suite locally with Docker available (tests use Testcontainers) before relying on it:
+
+- PostgreSQL 16 via Testcontainers
+- Concurrent SQS event reservation (atomic `INSERT ... ON CONFLICT DO NOTHING` dedup)
+- SQS reservation rollback on settlement failure
+- Concurrent optimistic locking (two simultaneous transactions racing on the same account version)
+- Keyset-based reconciliation pagination with temporal cutoff
+- Architecture boundaries via ArchUnit
 
 ---
 
