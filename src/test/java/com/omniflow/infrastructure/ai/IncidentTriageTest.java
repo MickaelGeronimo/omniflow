@@ -15,7 +15,6 @@ import org.mockito.Mockito;
 
 import java.math.BigDecimal;
 import java.util.Collections;
-import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -23,14 +22,14 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-class AutonomousAuditAgentTest {
+class IncidentTriageTest {
 
     private LedgerInspectionTool ledgerTool;
     private MongoAuditInspectionTool mongoAuditTool;
     private DlqPayloadInspectionTool dlqTool;
     private FinancialPolicyGuardrails guardrails;
     private AuditEventStorePort auditStore;
-    private AutonomousAuditAgentService agentService;
+    private IncidentTriageService triageService;
 
     @BeforeEach
     void setUp() {
@@ -44,7 +43,7 @@ class AutonomousAuditAgentTest {
         dlqTool = new DlqPayloadInspectionTool(new ObjectMapper());
         guardrails = new FinancialPolicyGuardrails(new BigDecimal("10000.00"), 0.85);
 
-        agentService = new AutonomousAuditAgentService(
+        triageService = new IncidentTriageService(
                 ledgerTool, mongoAuditTool, dlqTool, guardrails, auditStore
         );
     }
@@ -60,7 +59,7 @@ class AutonomousAuditAgentTest {
                 "NullPointerException: missing creditorAccount"
         );
 
-        AuditTriageUseCase.TriageVerdict verdict = agentService.triageIncident(request);
+        AuditTriageUseCase.TriageVerdict verdict = triageService.triageIncident(request);
 
         assertThat(verdict.transactionId()).isEqualTo("tx-999");
         assertThat(verdict.recommendedAction()).isEqualTo("QUARANTINE_POISON_PILL");
@@ -83,7 +82,7 @@ class AutonomousAuditAgentTest {
                 "insufficient funds in settlement buffer"
         );
 
-        AuditTriageUseCase.TriageVerdict verdict = agentService.triageIncident(request);
+        AuditTriageUseCase.TriageVerdict verdict = triageService.triageIncident(request);
 
         assertThat(verdict.requiresHumanApproval()).isTrue();
         assertThat(verdict.recommendedAction()).isEqualTo("MANUAL_REVERSAL_REQUIRED");

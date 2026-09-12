@@ -4,7 +4,7 @@
     Demonstrates:
     1. Multi-Leg Marketplace Split Settlement (Double-Entry Zero-Sum)
     2. SHA-256 Distributed Idempotency (Duplicate Prevention & Tamper Detection)
-    3. Autonomous Spring AI Agent DLQ Poison-Pill Triage & Policy Guardrails (HITL)
+    3. AI Incident Triage Engine & Financial Policy Guardrails (HITL)
     4. Spring Batch 5 Nightly Financial Reconciliation
 #>
 
@@ -14,7 +14,7 @@ param(
 
 Write-Host "=================================================================" -ForegroundColor Cyan
 Write-Host "   OMNIFLOW: CLOUD-NATIVE FINANCIAL ORCHESTRATION PLATFORM       " -ForegroundColor Yellow
-Write-Host "   Live Architecture & Autonomous AI Agent Demonstration         " -ForegroundColor Cyan
+Write-Host "   Live Architecture & AI Incident Triage Demonstration          " -ForegroundColor Cyan
 Write-Host "=================================================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -67,8 +67,8 @@ try {
 
 Write-Host ""
 
-# 4. Autonomous AI Agent DLQ Poison-Pill Triage
-Write-Host "[4/5] Simulating DLQ Poison-Pill Ingestion & Autonomous AI Triage..." -ForegroundColor Yellow
+# 4. AI Incident Triage & DLQ Poison-Pill Handling
+Write-Host "[4/5] Simulating DLQ Poison-Pill Ingestion & AI Incident Triage..." -ForegroundColor Yellow
 $aiBody = @{
     triggerType = "DLQ_POISON_PILL"
     transactionId = "tx-corrupted-whale-01"

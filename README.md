@@ -1,7 +1,7 @@
 # OmniFlow ⚡
 ### Cloud-Native Financial Orchestration & Settlement Platform
 
-[![Java](https://img.shields.io/badge/Java-17%20%2F%2021-orange.svg)](https://www.oracle.com/java/)
+[![Java](https://img.shields.io/badge/Java-17%20LTS-orange.svg)](https://www.oracle.com/java/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.4-brightgreen.svg)](https://spring.io/projects/spring-boot)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue.svg)](https://www.postgresql.org/)
 [![MongoDB](https://img.shields.io/badge/MongoDB-7.0-green.svg)](https://www.mongodb.com/)
@@ -20,7 +20,7 @@ Built with **Hexagonal Architecture (Ports and Adapters)** and **Domain-Driven D
 * **Network Duplication & Retries:** Prevented via a **Stateful Distributed Idempotency Engine** with cryptographic SHA-256 fingerprinting, in-flight lease locking (2-minute lease with crash recovery), and 24-hour response caching.
 * **Ledger Imbalances & Concurrency Races:** Prevented via strict **Double-Entry Zero-Sum Invariants** ($\sum \text{Debits} = \sum \text{Credits}$) and JPA `@Version` **Optimistic Locking** on account balances.
 * **Multi-Party Marketplace Splits:** Atomically divides payments into buyer debit, merchant payout, platform take-rate commission, and chargeback escrow retention.
-* **Incident Triage with Safety Guardrails:** Deterministic diagnostic tool inspections (`@Tool`) governed by hard **Financial Policy Safety Guardrails** with Human-in-the-Loop (HITL) approval thresholds for values exceeding \$10,000.00.
+* **Incident Triage with Safety Guardrails:** Automated diagnostic tool inspections governed by hard **Financial Policy Safety Guardrails** with Human-in-the-Loop (HITL) approval thresholds for values exceeding \$10,000.00.
 * **Defense-in-Depth Security:** Role-Based Access Control (RBAC) supporting OAuth2 JWT Bearer tokens and M2M API Keys, Token-Bucket Rate Limiting (Bucket4j), and Correlation ID MDC propagation.
 
 ---
@@ -72,14 +72,15 @@ flowchart TD
         MongoStore --> MongoDocs[(audit_events & agent_triage_logs)]
     end
 
-    subgraph AIAgent ["Autonomous Incident Triage Engine"]
-        DLQ -->|Dead Letter Incident| AgentService[AutonomousAuditAgentService]
-        AgentService --> Tool1[DlqPayloadInspectionTool]
-        AgentService --> Tool2[MongoAuditInspectionTool]
-        AgentService --> Tool3[LedgerInspectionTool]
-        AgentService --> Guardrail[FinancialPolicyGuardrails]
+    subgraph AIAgent ["Incident Triage Engine (Preview)"]
+        DLQ -->|Dead Letter Incident| TriageService[IncidentTriageService]
+        TriageService --> Tool1[DlqPayloadInspectionTool]
+        TriageService --> Tool2[MongoAuditInspectionTool]
+        TriageService --> Tool3[LedgerInspectionTool]
+        TriageService --> Reasoning[IncidentReasoningEngine Strategy]
+        Reasoning --> Guardrail[FinancialPolicyGuardrails]
         Guardrail -->|Threshold > $10,000| HITL[Human-in-the-Loop Sign-off]
-        AgentService --> MongoDocs
+        TriageService --> MongoDocs
     end
 
     subgraph Batch ["Spring Batch 5 Engine"]
@@ -130,16 +131,17 @@ Eliminates dual-write inconsistencies between the relational database and the AW
   * **`COMPLETED`:** Caches the serialized response and extends retention to 24 hours.
   * **Tamper Detection:** Throws `ConflictingPayloadException` (HTTP 409 Conflict) if a previously seen key is reused with altered payment attributes.
 
-### 4. Deterministic AI-Assisted Incident Triage & Guardrails
-* Triggered upon DLQ dead-letter events or ledger discrepancies.
-* Diagnostic tool execution:
+### 4. AI Incident Triage — Architectural Preview (LLM-Ready)
+The current implementation uses a deterministic reasoning engine (`DeterministicIncidentReasoningEngine`) for reproducible incident classification and strict audit compliance. A Spring AI integration point (`SpringAiIncidentReasoningEngine`) is provided as an architectural preview for future LLM-backed reasoning. Financial actions remain protected by deterministic policy guardrails and human approval:
+* **Decoupled Strategy Port (`IncidentReasoningEngine`):** Allows hot-swapping between deterministic rule engines and experimental LLM chat models without changing core transaction or settlement code.
+* **Diagnostic Tool Execution:**
   * `DlqPayloadInspectionTool`: Diagnoses payload schema defects and transient network aborts.
   * `MongoAuditInspectionTool`: Reconstructs chronological audit trail from MongoDB.
   * `LedgerInspectionTool`: Verifies current ledger state and account balances.
 * **Deterministic Safety Policy (`FinancialPolicyGuardrails`):**
   * Auto-remediation is blocked and routed to **Human-in-the-Loop (HITL)** if:
     1. Transaction amount exceeds **$10,000.00**.
-    2. Agent confidence score is lower than **0.85**.
+    2. Diagnostic confidence score is lower than **0.85**.
     3. Action requires permanent financial write-off or manual ledger adjustment.
   * Full reasoning chain, evidence, and verdict are persisted immutably in MongoDB.
 
@@ -169,7 +171,7 @@ Eliminates dual-write inconsistencies between the relational database and the AW
 | **Tampered Request Payload** | Identical idempotency key reused with modified amount | **SHA-256 Fingerprint Validation** returning `409 Conflict / ConflictingPayloadException`. | `FinancialOrchestratorService` |
 | **Multi-Currency Inconsistency** | Leg posted in EUR to USD ledger account | **Strict Currency Validation** throwing explicit domain `CurrencyMismatchException`. | `DoubleEntryLedgerTest` |
 | **Large Batch Memory Spike** | Millions of ledger entries scanned during reconciliation | **Keyset Cursor Pagination** (`WHERE entry_id > :lastId AND timestamp <= :cutoff`) with $O(1)$ memory. | `ReconciliationBatchLauncher` |
-| **Poison Pill Message** | Corrupted message body crashes consumer loop | **SQS Dead-Letter Queue (DLQ)** redrive after 3 attempts + trigger autonomous triage agent. | `AutonomousAuditAgentTest` |
+| **Poison Pill Message** | Corrupted message body crashes consumer loop | **SQS Dead-Letter Queue (DLQ)** redrive after 3 attempts + automated incident triage. | `IncidentTriageTest` |
 
 ---
 
@@ -177,24 +179,24 @@ Eliminates dual-write inconsistencies between the relational database and the AW
 
 | Domain | Technology | Purpose |
 |---|---|---|
-| **Language** | Java 17 LTS / 21 | Records, Pattern Matching, Sealed Types, Virtual Threads |
+| **Language** | Java 17 LTS | Records, Pattern Matching, Sealed Types, Pure Domain Hexagonal |
 | **Framework** | Spring Boot 3.3.4 | Core framework, Actuator, Micrometer Prometheus |
 | **Relational DB** | PostgreSQL 16 | ACID financial transactions, Flyway migrations |
-| **NoSQL DB** | MongoDB 7.0 | Append-only immutable audit logs & AI reasoning trails |
+| **NoSQL DB** | MongoDB 7.0 | Append-only immutable audit logs & triage reasoning trails |
 | **Cloud Services** | Spring Cloud AWS 3.2.1 | SQS, SNS (Fan-out), S3 |
 | **Cloud Mock** | LocalStack 3.7 | Local AWS emulation with automated shell bootstrapping |
-| **Batch Engine** | Spring Batch 5 | Nightly Ledger Reconciliation with Paged Reader |
+| **Batch Engine** | Spring Batch 5 | Nightly Ledger Reconciliation with Keyset Cursor Reader |
+| **AI Preview** | Spring AI Core | Architectural preview hook for LLM-backed incident reasoning |
 | **Resilience** | Bucket4j | Token-bucket rate limiting defense |
-| **Quality & Arch** | ArchUnit + JUnit 5 | Architectural purity verification & Concurrency tests |
+| **Quality & Arch** | ArchUnit + JUnit 5 | Architectural boundary verification & Concurrency tests |
 
 ---
 
 ## 📦 Getting Started
 
 ### Prerequisites
-* **Java 17+** (or Java 21)
-* **Maven 3.8+**
-* **Docker & Docker Compose**
+* **Java 17 LTS**
+* **Docker & Docker Compose** (Maven Wrapper included)
 
 ### 1. Start Infrastructure (PostgreSQL, MongoDB, LocalStack)
 ```bash

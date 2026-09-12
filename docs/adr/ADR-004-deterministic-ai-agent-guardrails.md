@@ -1,4 +1,4 @@
-# ADR-004: Deterministic AI Agent Guardrails & Human-in-the-Loop (HITL)
+# ADR-004: AI Incident Triage Engine & Deterministic Safety Guardrails
 
 ## Status
 **Accepted**
@@ -7,10 +7,10 @@
 Deploying Generative AI and Large Language Models (LLMs) into banking and fintech systems carries severe risks of hallucinations, prompt injection, and non-deterministic behavior. An autonomous agent tasked with triaging Dead Letter Queue (DLQ) poison pills or reconciling ledger discrepancies could inadvertently execute unauthorized write-offs or trigger incorrect reversal transactions.
 
 ## Decision
-We implemented an **Autonomous Diagnostic Agent with Hard Deterministic Guardrails**:
+We implemented an **Automated Incident Triage Engine with Hard Deterministic Guardrails**:
 1. **Separation of Diagnosis and Execution:**
-   * The AI Agent operates diagnostic tools marked with `@Tool` (`inspectDlqPayload`, `queryTransactionAuditTrail`, `inspectLedgerAccount`) to gather facts and hypothesize root causes.
-   * The agent **never** writes directly to financial balances or modifies transaction states autonomously without policy validation.
+   * The diagnostic tools (`inspectDlqPayload`, `queryTransactionAuditTrail`, `inspectLedgerAccount`) gather forensic facts and inspect payloads.
+   * The triage engine **never** writes directly to financial balances or modifies transaction states without policy validation.
 2. **Deterministic Safety Policy Engine (`FinancialPolicyGuardrails`):**
    Hard mathematical rules enforced in pure Java code, completely outside the LLM's prompt context:
    * **Rule 1 (Financial Value Threshold):** Any transaction exceeding **$10,000.00** strictly requires **Human-in-the-Loop (HITL)** approval.

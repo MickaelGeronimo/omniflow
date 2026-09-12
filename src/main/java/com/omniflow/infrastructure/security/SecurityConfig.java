@@ -56,7 +56,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/v1/reconciliation/**")
                         .hasAnyRole("OPERATIONS", "ADMIN")
 
-                        // Autonomous AI Agent incident triage
+                        // AI Incident Triage (Preview)
                         .requestMatchers(HttpMethod.POST, "/api/v1/ai/**")
                         .hasAnyRole("AUDITOR", "RISK_ENGINEER", "ADMIN")
 

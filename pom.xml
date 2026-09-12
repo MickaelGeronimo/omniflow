@@ -130,7 +130,7 @@
             <version>${bucket4j.version}</version>
         </dependency>
 
-        <!-- Spring AI Core (Autonomous AI Agent & Tool Calling) -->
+        <!-- Spring AI Core (AI Incident Triage - Architectural Preview) -->
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-core</artifactId>

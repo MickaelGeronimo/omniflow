@@ -13,10 +13,17 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.util.*;
 
+/**
+ * Automated Incident Triage Service.
+ * Orchestrates forensic evidence collection across SQS DLQ, MongoDB audit trail,
+ * and ledger balances. Delegates diagnostic reasoning to an IncidentReasoningEngine
+ * (deterministic in production; Spring AI ready as preview), with financial actions
+ * strictly guarded by deterministic policy rules and Human-in-the-Loop (HITL) approval.
+ */
 @Service
-public class AutonomousAuditAgentService implements AuditTriageUseCase {
+public class IncidentTriageService implements AuditTriageUseCase {
 
-    private static final Logger log = LoggerFactory.getLogger(AutonomousAuditAgentService.class);
+    private static final Logger log = LoggerFactory.getLogger(IncidentTriageService.class);
 
     private final LedgerInspectionTool ledgerTool;
     private final MongoAuditInspectionTool mongoAuditTool;
@@ -25,7 +32,7 @@ public class AutonomousAuditAgentService implements AuditTriageUseCase {
     private final AuditEventStorePort auditStore;
     private final IncidentReasoningEngine reasoningEngine;
 
-    public AutonomousAuditAgentService(
+    public IncidentTriageService(
             LedgerInspectionTool ledgerTool,
             MongoAuditInspectionTool mongoAuditTool,
             DlqPayloadInspectionTool dlqTool,
@@ -40,7 +47,7 @@ public class AutonomousAuditAgentService implements AuditTriageUseCase {
         this.reasoningEngine = (reasoningEngine != null) ? reasoningEngine : new DeterministicIncidentReasoningEngine();
     }
 
-    public AutonomousAuditAgentService(
+    public IncidentTriageService(
             LedgerInspectionTool ledgerTool,
             MongoAuditInspectionTool mongoAuditTool,
             DlqPayloadInspectionTool dlqTool,
@@ -52,7 +59,7 @@ public class AutonomousAuditAgentService implements AuditTriageUseCase {
     @Override
     public TriageVerdict triageIncident(TriageRequest request) {
         String incidentId = "INCIDENT-" + UUID.randomUUID().toString().substring(0, 8);
-        log.info("[AI-AGENT] Initiating autonomous incident triage [{}] for tx [{}] triggered by [{}]",
+        log.info("[INCIDENT-TRIAGE] Initiating automated incident triage [{}] for tx [{}] triggered by [{}]",
                 incidentId, request.transactionId(), request.triggerType());
 
         List<String> toolsExecuted = new ArrayList<>();
@@ -82,7 +89,7 @@ public class AutonomousAuditAgentService implements AuditTriageUseCase {
             }
         }
 
-        // Step 4: Autonomous reasoning via configured ReasoningEngine strategy
+        // Step 4: Diagnostic reasoning via configured IncidentReasoningEngine strategy
         IncidentReasoningEngine.ReasoningContext reasoningCtx = new IncidentReasoningEngine.ReasoningContext(
                 incidentId,
                 request.transactionId(),
@@ -120,7 +127,7 @@ public class AutonomousAuditAgentService implements AuditTriageUseCase {
                 evidence
         );
 
-        log.info("[AI-AGENT] Completed triage [{}]. Requires Human: {}, Confidence: {}, Action: {}, Engine: {}",
+        log.info("[INCIDENT-TRIAGE] Completed triage [{}]. Requires Human: {}, Confidence: {}, Action: {}, Engine: {}",
                 incidentId, requiresHuman, confidenceScore, recommendedAction, reasoningResult.engineModel());
 
         return verdict;
