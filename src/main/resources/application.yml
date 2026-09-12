@@ -8,6 +8,7 @@ spring:
     name: omniflow-core
 
   datasource:
+    # LOCAL/DEMO ONLY: Production deployments must override DB_URL, DB_USERNAME, DB_PASSWORD
     url: ${DB_URL:jdbc:postgresql://localhost:5432/omniflow_db}
     username: ${DB_USERNAME:omniflow_user}
     password: ${DB_PASSWORD:omniflow_password}
@@ -37,6 +38,7 @@ spring:
 
   data:
     mongodb:
+      # LOCAL/DEMO ONLY: Production deployments must override MONGO_URI
       uri: ${MONGO_URI:mongodb://localhost:27017/omniflow_audit}
 
   batch:
@@ -65,11 +67,15 @@ omniflow:
     sqs-queue-name: ${SQS_QUEUE_NAME:omniflow-settlement-queue}
     s3-bucket-name: ${S3_BUCKET_NAME:omniflow-reconciliation-reports}
   security:
+    # LOCAL/DEMO ONLY: Production deployments must override JWT_SECRET and API_KEY
     jwt-secret: ${JWT_SECRET:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
     rate-limit:
       requests-per-minute: 10000
   ai:
-    model: gpt-4o-mini
+    # Active engine: 'deterministic' (production-safe, zero hallucination). Options: deterministic | spring-ai
+    engine: ${OMNIFLOW_AI_ENGINE:deterministic}
+    # Target model for architectural preview when Spring AI ChatModel is wired
+    preview-target-model: gpt-4o-mini
     confidence-threshold: 0.85
     human-approval-threshold: 10000.00
 

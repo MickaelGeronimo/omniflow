@@ -52,7 +52,7 @@ public class ReconciliationBatchConfig {
     @Bean
     public StepExecutionListener promotionListener() {
         ExecutionContextPromotionListener listener = new ExecutionContextPromotionListener();
-        listener.setKeys(new String[]{"totalAudited", "matchedCount", "discrepancyCount"});
+        listener.setKeys(new String[]{"totalAudited", "matchedCount", "discrepancyCount", "discrepancies"});
         return listener;
     }
 

@@ -99,16 +99,30 @@ public class ReconciliationBatchLauncher implements ReconcileLedgerUseCase {
             ExecutionContext context = stepExecution.getExecutionContext();
             long total = context.getLong("totalAudited", 0L) + items.size();
             long discrepancies = context.getLong("discrepancyCount", 0L);
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> evidenceList = (List<Map<String, Object>>) context.get("discrepancies");
+            if (evidenceList == null) {
+                evidenceList = new ArrayList<>();
+            }
 
             for (ReconciliationBatchConfig.DiscrepancyRecord record : items) {
                 if ("DISCREPANCY_DETECTED".equals(record.status())) {
                     discrepancies++;
+                    if (evidenceList.size() < 100) { // Bounded forensic sample
+                        evidenceList.add(Map.of(
+                                "entryId", record.entryId(),
+                                "referenceId", record.referenceId(),
+                                "discrepancyAmount", record.discrepancyAmount().toPlainString(),
+                                "status", record.status()
+                        ));
+                    }
                 }
             }
 
             context.putLong("totalAudited", total);
             context.putLong("discrepancyCount", discrepancies);
             context.putLong("matchedCount", total - discrepancies);
+            context.put("discrepancies", evidenceList);
         };
     }
 
@@ -131,6 +145,7 @@ public class ReconciliationBatchLauncher implements ReconcileLedgerUseCase {
             long total = execution.getExecutionContext().getLong("totalAudited", 0L);
             long discrepancies = execution.getExecutionContext().getLong("discrepancyCount", 0L);
             long matched = execution.getExecutionContext().getLong("matchedCount", 0L);
+            Object evidence = execution.getExecutionContext().get("discrepancies");
 
             // Generate detailed JSON summary report for AWS S3 with evidence metadata
             Map<String, Object> summaryReport = new LinkedHashMap<>();
@@ -141,6 +156,7 @@ public class ReconciliationBatchLauncher implements ReconcileLedgerUseCase {
             summaryReport.put("matchedCount", matched);
             summaryReport.put("discrepancyCount", discrepancies);
             summaryReport.put("status", execution.getStatus().name());
+            summaryReport.put("discrepancies", evidence != null ? evidence : Collections.emptyList());
 
             byte[] reportBytes = objectMapper.writerWithDefaultPrettyPrinter()
                     .writeValueAsString(summaryReport)

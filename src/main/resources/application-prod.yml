@@ -1,6 +1,7 @@
 # ====================================================================
 # OmniFlow Production Profile: Strict Secrets & Cloud Infrastructure
 # Fails fast on startup if environment variables or secrets are missing.
+# ZERO DEFAULT FALLBACKS PERMITTED IN PRODUCTION.
 # ====================================================================
 spring:
   config:
@@ -8,9 +9,9 @@ spring:
       on-profile: prod
 
   datasource:
-    url: 
-    username: 
-    password: 
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     hikari:
       maximum-pool-size: 50
       minimum-idle: 10
@@ -28,20 +29,20 @@ spring:
 
   data:
     mongodb:
-      uri: 
+      uri: ${MONGO_URI}
 
   cloud:
     aws:
       region:
-        static: 
+        static: ${AWS_REGION}
       credentials:
-        access-key: 
-        secret-key: 
+        access-key: ${AWS_ACCESS_KEY_ID}
+        secret-key: ${AWS_SECRET_ACCESS_KEY}
 
 omniflow:
   security:
-    jwt-secret: 
-    api-key: 
+    jwt-secret: ${JWT_SECRET}
+    api-key: ${API_KEY}
 
 management:
   endpoint:

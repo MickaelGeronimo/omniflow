@@ -138,6 +138,9 @@ The current implementation uses a deterministic reasoning engine (`Deterministic
   * `DlqPayloadInspectionTool`: Diagnoses payload schema defects and transient network aborts.
   * `MongoAuditInspectionTool`: Reconstructs chronological audit trail from MongoDB.
   * `LedgerInspectionTool`: Verifies current ledger state and account balances.
+* **Configuration Integrity (`omniflow.ai.engine`):**
+  * `omniflow.ai.engine=deterministic` (Default): Runs production-hardened deterministic diagnostics with zero external network dependencies and zero hallucination risk.
+  * `omniflow.ai.engine=spring-ai`: Activates the architectural preview adapter (`SpringAiIncidentReasoningPreview`). The configured model (`preview-target-model=gpt-4o-mini`) represents the architectural target for future LLM chat models, rather than a hidden runtime dependency.
 * **Deterministic Safety Policy (`FinancialPolicyGuardrails`):**
   * Auto-remediation is blocked and routed to **Human-in-the-Loop (HITL)** if:
     1. Transaction amount exceeds **$10,000.00**.
@@ -147,8 +150,8 @@ The current implementation uses a deterministic reasoning engine (`Deterministic
 
 ### 5. High-Throughput Chunk-Based Spring Batch 5 Reconciliation
 * Scalable `ledgerItemReader` queries PostgreSQL in bounded pages of 100 records via Keyset Cursor pagination, ensuring bounded memory consumption proportional to the configured page/chunk size.
-* Stateless `@StepScope` writer and `ExecutionContextPromotionListener` accumulate audit metrics directly within the Spring Batch execution context, eliminating mutable state in singleton beans.
-* Uploads complete JSON reconciliation summaries directly to **AWS S3**.
+* Stateless `@StepScope` writer and `ExecutionContextPromotionListener` accumulate audit metrics and forensic discrepancy evidence directly within the Spring Batch execution context, eliminating mutable state in singleton beans.
+* Uploads complete JSON reconciliation summaries directly to **AWS S3**, including execution status, audited counts, and bounded discrepancy breakdown (`discrepancies`).
 
 ### 6. Role-Based Access Control (RBAC) & Security
 * Dual authentication support: **OAuth2 JWT Bearer Tokens** + **M2M API Key Header (`X-API-KEY`)**.

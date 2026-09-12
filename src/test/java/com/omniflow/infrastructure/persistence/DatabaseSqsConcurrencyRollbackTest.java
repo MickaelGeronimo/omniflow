@@ -16,6 +16,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -64,12 +68,12 @@ class DatabaseSqsConcurrencyRollbackTest {
     }
 
     @Test
-    @DisplayName("Should prove real database optimistic locking collision when concurrent transactions update the same account version")
-    void shouldDetectRealDatabaseOptimisticLockCollision() {
+    @DisplayName("Should prove real database optimistic locking collision with two simultaneous open transactions")
+    void shouldDetectRealDatabaseOptimisticLockCollision() throws InterruptedException {
         TransactionTemplate txTemplate = new TransactionTemplate(transactionManager);
         txTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
 
-        String accountId = "OMNI:0001:REAL-LOCK-1";
+        String accountId = "OMNI:0001:REAL-SIMULTANEOUS-LOCK";
 
         // Seed initial account row at version 0
         txTemplate.execute(status -> {
@@ -81,31 +85,73 @@ class DatabaseSqsConcurrencyRollbackTest {
                     new BigDecimal("1000.00"),
                     false
             );
-            return accountRepo.save(initial);
+            return accountRepo.saveAndFlush(initial);
         });
 
-        // Transaction 1 reads account at version 0
-        LedgerAccountJpaEntity instance1 = txTemplate.execute(status -> accountRepo.findById(accountId).orElseThrow());
-        assertThat(instance1.getVersion()).isEqualTo(0L);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch bothReadLatch = new CountDownLatch(2);
+        CountDownLatch commitGate = new CountDownLatch(1);
+        CountDownLatch doneLatch = new CountDownLatch(2);
 
-        // Transaction 2 reads account at version 0
-        LedgerAccountJpaEntity instance2 = txTemplate.execute(status -> accountRepo.findById(accountId).orElseThrow());
-        assertThat(instance2.getVersion()).isEqualTo(0L);
+        java.util.concurrent.atomic.AtomicInteger successCounter = new java.util.concurrent.atomic.AtomicInteger(0);
+        java.util.concurrent.atomic.AtomicInteger collisionCounter = new java.util.concurrent.atomic.AtomicInteger(0);
 
-        // Transaction 1 commits update -> database version advances to 1
-        txTemplate.execute(status -> {
-            instance1.setBalance(new BigDecimal("900.00"));
-            return accountRepo.saveAndFlush(instance1);
+        // Simultaneous Transaction A
+        executor.submit(() -> {
+            try {
+                txTemplate.execute(status -> {
+                    LedgerAccountJpaEntity acc = accountRepo.findById(accountId).orElseThrow();
+                    bothReadLatch.countDown();
+                    try {
+                        commitGate.await();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                    acc.setBalance(new BigDecimal("900.00"));
+                    accountRepo.saveAndFlush(acc);
+                    return null;
+                });
+                successCounter.incrementAndGet();
+            } catch (org.springframework.dao.OptimisticLockingFailureException e) {
+                collisionCounter.incrementAndGet();
+            } finally {
+                doneLatch.countDown();
+            }
         });
 
-        LedgerAccountJpaEntity updated = txTemplate.execute(status -> accountRepo.findById(accountId).orElseThrow());
-        assertThat(updated.getVersion()).isEqualTo(1L);
-        assertThat(updated.getBalance()).isEqualByComparingTo("900.00");
+        // Simultaneous Transaction B
+        executor.submit(() -> {
+            try {
+                txTemplate.execute(status -> {
+                    LedgerAccountJpaEntity acc = accountRepo.findById(accountId).orElseThrow();
+                    bothReadLatch.countDown();
+                    try {
+                        commitGate.await();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                    acc.setBalance(new BigDecimal("850.00"));
+                    accountRepo.saveAndFlush(acc);
+                    return null;
+                });
+                successCounter.incrementAndGet();
+            } catch (org.springframework.dao.OptimisticLockingFailureException e) {
+                collisionCounter.incrementAndGet();
+            } finally {
+                doneLatch.countDown();
+            }
+        });
 
-        // Transaction 2 attempts to commit with stale version 0 against database version 1
-        assertThatThrownBy(() -> txTemplate.execute(status -> {
-            instance2.setBalance(new BigDecimal("950.00"));
-            return accountRepo.saveAndFlush(instance2);
-        })).isInstanceOf(ObjectOptimisticLockingFailureException.class);
+        bothReadLatch.await(); // Guarantees both transactions have read version 0 simultaneously
+        commitGate.countDown(); // Releases both transactions to commit concurrently
+        doneLatch.await();
+        executor.shutdown();
+
+        // Exactly one transaction succeeds (version 0 -> 1) and the second collides with OptimisticLockingFailureException
+        assertThat(successCounter.get()).isEqualTo(1);
+        assertThat(collisionCounter.get()).isEqualTo(1);
+
+        LedgerAccountJpaEntity finalAccount = txTemplate.execute(status -> accountRepo.findById(accountId).orElseThrow());
+        assertThat(finalAccount.getVersion()).isEqualTo(1L);
     }
 }
