@@ -4,9 +4,9 @@
 **Accepted**
 
 ## Context
-A mission-critical financial orchestration platform has conflicting data access patterns:
-1. **Core Financial Transactions & Double-Entry Ledger:** Requires strict ACID guarantees, foreign key constraints, table locking, row versioning, and serializability to prevent double spending.
-2. **System Audit Trails & AI Incident Reasoning Trails:** Generates massive volumes of write-heavy, semi-structured documents (dynamic tool outputs, raw JSON payloads, LLM thought chains, stack traces, and forensic evidence) that should be append-only and never compete for I/O locks with transactional ledger tables.
+Financial orchestration platforms have conflicting data access patterns:
+1. **Core Financial Transactions & Double-Entry Ledger:** Requires strict ACID guarantees, foreign key constraints, row versioning, and serializability to prevent double spending.
+2. **System Audit Trails & AI Incident Reasoning Trails:** Generates write-heavy, semi-structured documents (dynamic tool outputs, raw JSON payloads, stack traces, and forensic evidence) that should be append-only and not compete for I/O locks with transactional ledger tables.
 
 ## Decision
 We adopted a **Polyglot Persistence** model:
@@ -22,9 +22,9 @@ We adopted a **Polyglot Persistence** model:
 
 ## Alternatives Considered
 * **PostgreSQL JSONB for everything:**
-  * *Cons:* Storing multi-megabyte AI reasoning trees and high-frequency audit logs in PostgreSQL bloats the relational buffer cache and tablespace, degrading HikariCP performance on ledger operations.
+  * *Cons:* Storing semi-structured diagnostic logs and high-frequency audit events in PostgreSQL bloats the relational buffer cache and tablespace, competing for connection pool resources during ledger operations.
 * **MongoDB for everything:**
-  * *Cons:* MongoDB multi-document transactions introduce latency and lack the battle-tested relational integrity checks, declarative constraint triggers, and `SKIP LOCKED` semantics of PostgreSQL.
+  * *Cons:* MongoDB multi-document transactions introduce latency and lack the strict relational integrity checks, declarative constraints, and `SKIP LOCKED` semantics of PostgreSQL.
 
 ## Consequences & Trade-offs
 * **Workload Isolation:** Relational transactions maintain maximum throughput and minimal latency without lock contention from audit ingestion.

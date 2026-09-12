@@ -29,7 +29,7 @@ ALTER TABLE posting_legs DROP CONSTRAINT IF EXISTS chk_leg_type;
 ALTER TABLE posting_legs ADD CONSTRAINT chk_leg_type
     CHECK (posting_type IN ('DEBIT', 'CREDIT'));
 
--- 4. Outbox Status Constraint (Staff-Level Multi-Instance State Machine)
+-- 4. Outbox Status State-Machine Constraint
 ALTER TABLE outbox_events DROP CONSTRAINT IF EXISTS chk_outbox_status;
 ALTER TABLE outbox_events ADD CONSTRAINT chk_outbox_status
     CHECK (status IN ('PENDING', 'PROCESSING', 'PUBLISHED', 'FAILED', 'DEAD_LETTER'));

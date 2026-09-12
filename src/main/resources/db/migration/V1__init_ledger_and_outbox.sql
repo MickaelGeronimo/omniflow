@@ -3,7 +3,7 @@
 -- Immutable Double-Entry Ledger, Distributed Idempotency & Transactional Outbox
 -- ====================================================================
 
--- 1. Distributed Idempotency Table (Zero Double-Spend Guard)
+-- 1. Distributed Idempotency Table
 CREATE TABLE IF NOT EXISTS idempotency_keys (
     idempotency_key VARCHAR(128) PRIMARY KEY,
     request_fingerprint VARCHAR(64) NOT NULL,
@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS transactions (
 CREATE INDEX IF NOT EXISTS idx_tx_status_updated ON transactions(status, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_tx_debtor ON transactions(debtor_account, created_at DESC);
 
--- 3. Double-Entry General Ledger Accounts (ACID Balance Store)
+-- 3. Double-Entry General Ledger Accounts
 CREATE TABLE IF NOT EXISTS ledger_accounts (
     account_id VARCHAR(64) PRIMARY KEY,
     account_name VARCHAR(128) NOT NULL,
@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS posting_legs (
 CREATE INDEX IF NOT EXISTS idx_legs_entry ON posting_legs(entry_id);
 CREATE INDEX IF NOT EXISTS idx_legs_acc_type ON posting_legs(account_id, posting_type);
 
--- 6. Transactional Outbox (At-Least-Once Event Delivery to AWS SNS with Consumer Deduplication)
+-- 6. Transactional Outbox Events
 CREATE TABLE IF NOT EXISTS outbox_events (
     id VARCHAR(64) PRIMARY KEY,
     aggregate_type VARCHAR(64) NOT NULL,

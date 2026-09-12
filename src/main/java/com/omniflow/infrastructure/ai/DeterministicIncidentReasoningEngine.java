@@ -5,9 +5,9 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
 /**
- * Deterministic, rules-based reasoning engine active in production.
- * Delivers zero-hallucination, ultra-low latency root-cause triage
- * based on forensic evidence from SQS DLQ and MongoDB audit logs.
+ * Deterministic rule-based reasoning engine.
+ * Performs root-cause triage based on forensic evidence
+ * from DLQ payloads and audit logs without external network calls.
  */
 @Component
 @Primary

@@ -4,10 +4,10 @@
 **Accepted**
 
 ## Context
-Deploying Generative AI and Large Language Models (LLMs) into banking and fintech systems carries severe risks of hallucinations, prompt injection, and non-deterministic behavior. An autonomous agent tasked with triaging Dead Letter Queue (DLQ) poison pills or reconciling ledger discrepancies could inadvertently execute unauthorized write-offs or trigger incorrect reversal transactions.
+Integrating external LLM providers into automated financial pipelines introduces non-determinism and operational risks. Automated triage of Dead Letter Queue (DLQ) messages or ledger discrepancies must not execute unverified write-offs or ledger reversals without explicit verification and policy controls.
 
 ## Decision
-We implemented an **Automated Incident Triage Engine with Hard Deterministic Guardrails**:
+We implemented an **Automated Incident Triage Engine with Deterministic Guardrails**:
 1. **Separation of Diagnosis and Execution:**
    * The diagnostic tools (`inspectDlqPayload`, `queryTransactionAuditTrail`, `inspectLedgerAccount`) gather forensic facts and inspect payloads.
    * The triage engine **never** writes directly to financial balances or modifies transaction states without policy validation.
@@ -20,10 +20,10 @@ We implemented an **Automated Incident Triage Engine with Hard Deterministic Gua
    Every triage decision, evaluated tool output, and confidence score is recorded to MongoDB for compliance auditing.
 
 ## Alternatives Considered
-* **Free-Form Autonomous Agent (ReAct loop with direct DB write tools):**
-  * *Rejected:* Unacceptable risk in financial production environments. A hallucinated tool argument could drain customer funds.
-* **Pure Static Rule Engine without AI:**
-  * *Rejected:* Inability to parse unstructured error messages, stack traces, and variable third-party payload schemas from cloud DLQs.
+* **Direct Database Remediation Loop:**
+  * *Rejected:* Unacceptable risk in financial systems. Unvalidated tool arguments could modify balances or write off funds without controls.
+* **Pure Hardcoded Rule Engine without Extensibility:**
+  * *Rejected:* Less flexible for parsing varied error messages, stack traces, and third-party payload schemas from cloud DLQs.
 
 ## Consequences & Trade-offs
 * **Safe Automation:** Low-risk, high-confidence events (transient retryable network timeouts, non-financial schema mismatches) are classified instantly, saving engineering on-call hours.

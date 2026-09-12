@@ -29,6 +29,6 @@ LIMIT 50;
   * *Cons:* Inability to guarantee message publishing if the orchestrator process crashes before emitting the event.
 
 ## Consequences & Trade-offs
-* **Guaranteed At-Least-Once Delivery:** Eliminates dual-write inconsistencies between local database state and event publishing, providing at-least-once delivery semantics. Downstream consumers require idempotency (which OmniFlow enforces via SHA-256 fingerprinting).
+* **At-Least-Once Delivery:** Eliminates dual-write inconsistencies between local database state and event publishing, providing at-least-once delivery semantics. Downstream consumers require idempotency (which OmniFlow enforces via SHA-256 fingerprinting).
 * **Zero Lock Contention:** `FOR UPDATE SKIP LOCKED` allows multiple relay worker pods to run concurrently without blocking each other or republishing the same event.
 * **Exponential Backoff & Dead-Lettering:** Events failing after 3 attempts transition to `DEAD_LETTER` for automated incident triage.

@@ -4,7 +4,7 @@
 **Accepted**
 
 ## Context
-In payment gateways and distributed settlement pipelines, network timeouts frequently cause client SDKs, upstream checkout frontends, or automated retriers to resend requests. Without robust idempotency:
+In payment gateways and distributed settlement pipelines, network timeouts frequently cause client SDKs, upstream checkout frontends, or automated retriers to resend requests. Without idempotency controls:
 1. Double-charges occur when duplicate requests hit the payment orchestrator concurrently.
 2. Attackers or buggy clients can reuse an idempotency key with altered payload values (e.g. attempting to pay a higher amount or change recipient under a previously approved key).
 

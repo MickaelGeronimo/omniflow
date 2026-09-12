@@ -11,17 +11,17 @@
 
 ---
 
-## 🏛️ Executive Summary
+## 🏛️ Overview
 
-**OmniFlow** is an enterprise distributed financial orchestration and settlement engine designed to handle mission-critical payments, automated double-entry ledger bookkeeping, asynchronous message settlement, and automated policy-governed incident triage.
+**OmniFlow** is a distributed financial orchestration and settlement engine designed to handle payments, double-entry ledger bookkeeping, asynchronous message settlement, and policy-governed incident triage.
 
-Built with **Hexagonal Architecture (Ports and Adapters)** and **Domain-Driven Design (DDD)**, OmniFlow solves foundational engineering challenges in high-throughput financial pipelines:
-* **Dual-Write Consistency:** Eliminates dual-write inconsistencies between local database state and event publishing using the **Transactional Outbox Pattern** with PostgreSQL `SKIP LOCKED` polling, providing guaranteed at-least-once delivery semantics.
-* **Network Duplication & Retries:** Prevented via a **Stateful Distributed Idempotency Engine** with cryptographic SHA-256 fingerprinting, in-flight lease locking (2-minute lease with crash recovery), and 24-hour response caching.
-* **Ledger Imbalances & Concurrency Races:** Prevented via strict **Double-Entry Zero-Sum Invariants** ($\sum \text{Debits} = \sum \text{Credits}$) and JPA `@Version` **Optimistic Locking** on account balances.
+Built with **Hexagonal Architecture (Ports and Adapters)** and **Domain-Driven Design (DDD)**, OmniFlow addresses common engineering challenges in financial pipelines:
+* **Dual-Write Consistency:** Eliminates dual-write inconsistencies between local database state and event publishing using the **Transactional Outbox Pattern** with PostgreSQL `SKIP LOCKED` polling, providing at-least-once delivery semantics.
+* **Network Duplication & Retries:** Handled via a **Distributed Idempotency Engine** with SHA-256 fingerprinting, in-flight lease locking (2-minute lease with crash recovery), and 24-hour response caching.
+* **Ledger Imbalances & Concurrency Races:** Enforced via **Double-Entry Zero-Sum Invariants** ($\sum \text{Debits} = \sum \text{Credits}$) and JPA `@Version` **Optimistic Locking** on account balances.
 * **Multi-Party Marketplace Splits:** Atomically divides payments into buyer debit, merchant payout, platform take-rate commission, and chargeback escrow retention.
-* **Incident Triage with Safety Guardrails:** Automated diagnostic tool inspections governed by hard **Financial Policy Safety Guardrails** with Human-in-the-Loop (HITL) approval thresholds for values exceeding \$10,000.00.
-* **Defense-in-Depth Security:** Role-Based Access Control (RBAC) supporting OAuth2 JWT Bearer tokens and M2M API Keys, Token-Bucket Rate Limiting (Bucket4j), and Correlation ID MDC propagation.
+* **Incident Triage with Safety Guardrails:** Diagnostic inspections governed by **Financial Policy Safety Guardrails** with Human-in-the-Loop (HITL) approval thresholds for values exceeding \$10,000.00.
+* **Security & Access Control:** Role-Based Access Control (RBAC) supporting OAuth2 JWT Bearer tokens and M2M API Keys, Token-Bucket Rate Limiting (Bucket4j), and Correlation ID MDC propagation.
 
 ---
 
@@ -122,9 +122,9 @@ Eliminates dual-write inconsistencies between the relational database and the AW
   FOR UPDATE SKIP LOCKED 
   LIMIT 50;
   ```
-* Provides **guaranteed at-least-once delivery semantics**. Events that fail 3 retry attempts transition to `DEAD_LETTER` for incident triage.
+* Provides **at-least-once delivery semantics**. Events that fail 3 retry attempts transition to `DEAD_LETTER` for incident triage.
 
-### 3. Stateful SHA-256 Distributed Idempotency Engine
+### 3. Distributed SHA-256 Idempotency Engine
 * Calculates a deterministic SHA-256 fingerprint over `referenceId|debtor|creditor|amount|currency|payload`.
 * Atomic state transitions:
   * **`IN_FLIGHT`:** Holds an initial 2-minute lease lock via `REQUIRES_NEW`. If a node crashes during processing, the expired lease is safely reclaimed on retry.
@@ -139,7 +139,7 @@ The current implementation uses a deterministic reasoning engine (`Deterministic
   * `MongoAuditInspectionTool`: Reconstructs chronological audit trail from MongoDB.
   * `LedgerInspectionTool`: Verifies current ledger state and account balances.
 * **Configuration Integrity (`omniflow.ai.engine`):**
-  * `omniflow.ai.engine=deterministic` (Default): Runs production-hardened deterministic diagnostics with zero external network dependencies and zero hallucination risk.
+  * `omniflow.ai.engine=deterministic` (Default): Runs deterministic diagnostics with zero external network dependencies.
   * `omniflow.ai.engine=spring-ai`: Activates the architectural preview adapter (`SpringAiIncidentReasoningPreview`). The configured model (`preview-target-model=gpt-4o-mini`) represents the architectural target for future LLM chat models, rather than a hidden runtime dependency.
 * **Deterministic Safety Policy (`FinancialPolicyGuardrails`):**
   * Auto-remediation is blocked and routed to **Human-in-the-Loop (HITL)** if:

@@ -2,7 +2,7 @@
 -- V3: Consumer Idempotency Store & Append-Only Ledger Immutability
 -- ====================================================================
 
--- 1. Consumer Idempotency Deduplication Store (At-Least-Once SQS Ingestion Guard)
+-- 1. Consumer Idempotency Deduplication Store
 CREATE TABLE IF NOT EXISTS processed_settlement_events (
     event_id VARCHAR(64) PRIMARY KEY,
     transaction_id VARCHAR(64) NOT NULL,
@@ -14,7 +14,7 @@ CREATE INDEX IF NOT EXISTS idx_proc_events_tx ON processed_settlement_events(tra
 -- 2. Correlation ID tracking on Outbox Events
 ALTER TABLE outbox_events ADD COLUMN IF NOT EXISTS correlation_id VARCHAR(64);
 
--- 3. Append-Only Financial Ledger Guard: Prevent UPDATE or DELETE on posting_legs & journal_entries
+-- 3. Append-Only Rules: Prevent UPDATE or DELETE on posting_legs & journal_entries
 CREATE OR REPLACE RULE no_update_posting_legs AS
     ON UPDATE TO posting_legs DO INSTEAD NOTHING;
 
