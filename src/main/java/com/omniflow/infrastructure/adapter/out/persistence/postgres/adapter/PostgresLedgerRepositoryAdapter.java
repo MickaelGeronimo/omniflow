@@ -130,22 +130,30 @@ public class PostgresLedgerRepositoryAdapter implements LedgerRepositoryPort {
 
     @Override
     public List<JournalEntry> findAllJournalEntries() {
-        return journalRepo.findAll().stream().map(entity -> {
-            List<PostingLeg> domainLegs = entity.getLegs().stream().map(leg -> new PostingLeg(
-                    AccountId.parse(leg.getAccountId()),
-                    leg.getPostingType(),
-                    Money.of(leg.getAmount(), leg.getCurrency()),
-                    leg.getDescription()
-            )).toList();
+        return journalRepo.findAll().stream().map(this::toDomainJournal).toList();
+    }
 
-            return new JournalEntry(
-                    entity.getEntryId(),
-                    entity.getReferenceId(),
-                    entity.getTimestamp(),
-                    entity.getMemo(),
-                    domainLegs
-            );
-        }).toList();
+    @Override
+    public List<JournalEntry> findJournalEntriesPaged(int page, int size) {
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size);
+        return journalRepo.findAll(pageable).stream().map(this::toDomainJournal).toList();
+    }
+
+    private JournalEntry toDomainJournal(JournalEntryJpaEntity entity) {
+        List<PostingLeg> domainLegs = entity.getLegs().stream().map(leg -> new PostingLeg(
+                AccountId.parse(leg.getAccountId()),
+                leg.getPostingType(),
+                Money.of(leg.getAmount(), leg.getCurrency()),
+                leg.getDescription()
+        )).toList();
+
+        return new JournalEntry(
+                entity.getEntryId(),
+                entity.getReferenceId(),
+                entity.getTimestamp(),
+                entity.getMemo(),
+                domainLegs
+        );
     }
 
     private LedgerAccount toDomain(LedgerAccountJpaEntity entity) {

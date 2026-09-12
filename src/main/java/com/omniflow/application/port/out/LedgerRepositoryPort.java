@@ -16,4 +16,6 @@ public interface LedgerRepositoryPort {
     void saveJournalEntry(JournalEntry entry);
 
     List<JournalEntry> findAllJournalEntries();
+
+    List<JournalEntry> findJournalEntriesPaged(int page, int size);
 }

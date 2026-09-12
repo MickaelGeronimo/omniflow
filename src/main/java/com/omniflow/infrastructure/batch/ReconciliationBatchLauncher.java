@@ -7,14 +7,12 @@ import com.omniflow.application.port.out.S3StoragePort;
 import com.omniflow.domain.ledger.JournalEntry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.batch.core.Job;
-import org.springframework.batch.core.JobExecution;
-import org.springframework.batch.core.JobParameters;
-import org.springframework.batch.core.JobParametersBuilder;
+import org.springframework.batch.core.*;
+import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.launch.JobLauncher;
+import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
-import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.stereotype.Service;
@@ -22,7 +20,6 @@ import org.springframework.stereotype.Service;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.*;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 @Service
 public class ReconciliationBatchLauncher implements ReconcileLedgerUseCase {
@@ -35,9 +32,6 @@ public class ReconciliationBatchLauncher implements ReconcileLedgerUseCase {
     private final S3StoragePort s3Storage;
     private final ObjectMapper objectMapper;
     private final String s3BucketName;
-
-    // Thread-safe buffer for chunk records during job execution
-    private final List<ReconciliationBatchConfig.DiscrepancyRecord> processedRecords = new CopyOnWriteArrayList<>();
 
     public ReconciliationBatchLauncher(
             JobLauncher jobLauncher,
@@ -54,22 +48,60 @@ public class ReconciliationBatchLauncher implements ReconcileLedgerUseCase {
         this.s3BucketName = s3BucketName;
     }
 
+    /**
+     * Chunk-based Paged ItemReader:
+     * Reads from PostgreSQL in bounded pages of 100 records.
+     * Guarantees O(1) constant memory consumption regardless of dataset size.
+     */
     @Bean
+    @StepScope
     public ItemReader<JournalEntry> ledgerItemReader() {
-        return () -> {
-            List<JournalEntry> entries = ledgerRepository.findAllJournalEntries();
-            return new ListItemReader<>(entries).read();
+        return new ItemReader<>() {
+            private int page = 0;
+            private Iterator<JournalEntry> currentChunk = Collections.emptyIterator();
+
+            @Override
+            public synchronized JournalEntry read() {
+                if (!currentChunk.hasNext()) {
+                    List<JournalEntry> nextBatch = ledgerRepository.findJournalEntriesPaged(page++, 100);
+                    if (nextBatch.isEmpty()) {
+                        return null; // signals EOF to Spring Batch
+                    }
+                    currentChunk = nextBatch.iterator();
+                }
+                return currentChunk.next();
+            }
         };
     }
 
+    /**
+     * Stateless StepScope Writer:
+     * Maintains chunk metrics directly inside Spring Batch ExecutionContext,
+     * completely eliminating mutable state in singleton Spring services.
+     */
     @Bean
-    public ItemWriter<ReconciliationBatchConfig.DiscrepancyRecord> s3ReportWriter() {
-        return items -> processedRecords.addAll(items.getItems());
+    @StepScope
+    public ItemWriter<ReconciliationBatchConfig.DiscrepancyRecord> s3ReportWriter(
+            @Value("#{stepExecution}") StepExecution stepExecution) {
+        return items -> {
+            ExecutionContext context = stepExecution.getExecutionContext();
+            long total = context.getLong("totalAudited", 0L) + items.size();
+            long discrepancies = context.getLong("discrepancyCount", 0L);
+
+            for (ReconciliationBatchConfig.DiscrepancyRecord record : items) {
+                if ("DISCREPANCY_DETECTED".equals(record.status())) {
+                    discrepancies++;
+                }
+            }
+
+            context.putLong("totalAudited", total);
+            context.putLong("discrepancyCount", discrepancies);
+            context.putLong("matchedCount", total - discrepancies);
+        };
     }
 
     @Override
     public ReconciliationResult runNightlyReconciliation(LocalDate date) {
-        processedRecords.clear();
         String jobId = "RECON-" + date + "-" + System.currentTimeMillis();
 
         try {
@@ -81,21 +113,18 @@ public class ReconciliationBatchLauncher implements ReconcileLedgerUseCase {
             log.info("[SPRING-BATCH] Starting Nightly Financial Reconciliation Job [{}] for date [{}]", jobId, date);
             JobExecution execution = jobLauncher.run(reconciliationJob, params);
 
-            long total = processedRecords.size();
-            long discrepancies = processedRecords.stream()
-                    .filter(r -> "DISCREPANCY_DETECTED".equals(r.status()))
-                    .count();
-            long matched = total - discrepancies;
+            long total = execution.getExecutionContext().getLong("totalAudited", 0L);
+            long discrepancies = execution.getExecutionContext().getLong("discrepancyCount", 0L);
+            long matched = execution.getExecutionContext().getLong("matchedCount", 0L);
 
-            // Generate JSON summary for AWS S3
+            // Generate JSON summary report for AWS S3
             Map<String, Object> summaryReport = Map.of(
                     "jobId", jobId,
                     "reconciliationDate", date.toString(),
                     "totalAudited", total,
                     "matchedCount", matched,
                     "discrepancyCount", discrepancies,
-                    "status", execution.getStatus().name(),
-                    "items", processedRecords
+                    "status", execution.getStatus().name()
             );
 
             byte[] reportBytes = objectMapper.writerWithDefaultPrettyPrinter()

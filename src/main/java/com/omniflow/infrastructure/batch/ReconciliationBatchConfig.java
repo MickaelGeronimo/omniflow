@@ -2,24 +2,21 @@ package com.omniflow.infrastructure.batch;
 
 import com.omniflow.domain.ledger.JournalEntry;
 import com.omniflow.domain.ledger.PostingLeg;
-import com.omniflow.domain.model.Money;
-import com.omniflow.infrastructure.adapter.out.persistence.postgres.adapter.PostgresLedgerRepositoryAdapter;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
-import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
+import org.springframework.batch.core.StepExecutionListener;
 import org.springframework.batch.core.job.builder.JobBuilder;
+import org.springframework.batch.core.listener.ExecutionContextPromotionListener;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
-import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import java.math.BigDecimal;
-import java.util.List;
 
 @Configuration
 public class ReconciliationBatchConfig {
@@ -41,13 +38,22 @@ public class ReconciliationBatchConfig {
             PlatformTransactionManager transactionManager,
             ItemReader<JournalEntry> ledgerItemReader,
             ItemProcessor<JournalEntry, DiscrepancyRecord> discrepancyProcessor,
-            ItemWriter<DiscrepancyRecord> s3ReportWriter) {
+            ItemWriter<DiscrepancyRecord> s3ReportWriter,
+            StepExecutionListener promotionListener) {
         return new StepBuilder("reconciliationStep", jobRepository)
                 .<JournalEntry, DiscrepancyRecord>chunk(100, transactionManager)
                 .reader(ledgerItemReader)
                 .processor(discrepancyProcessor)
                 .writer(s3ReportWriter)
+                .listener(promotionListener)
                 .build();
+    }
+
+    @Bean
+    public StepExecutionListener promotionListener() {
+        ExecutionContextPromotionListener listener = new ExecutionContextPromotionListener();
+        listener.setKeys(new String[]{"totalAudited", "matchedCount", "discrepancyCount"});
+        return listener;
     }
 
     @Bean
