@@ -8,6 +8,8 @@ import com.omniflow.domain.ledger.LedgerAccount;
 import com.omniflow.domain.ledger.PostingLeg;
 import com.omniflow.domain.model.*;
 
+import org.springframework.transaction.annotation.Transactional;
+
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -39,6 +41,7 @@ public class FinancialOrchestratorService implements SubmitTransactionUseCase {
     }
 
     @Override
+    @Transactional
     public TransactionResult submitTransaction(SubmitCommand command) {
         Objects.requireNonNull(command, "command cannot be null");
 
