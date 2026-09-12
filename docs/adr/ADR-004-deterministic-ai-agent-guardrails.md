@@ -1,30 +1,32 @@
-# ADR-004: AI Incident Triage Engine & Deterministic Safety Guardrails
+# ADR-004: Incident Triage & Policy Guardrails
 
 ## Status
 **Accepted**
 
 ## Context
-Integrating external LLM providers into automated financial pipelines introduces non-determinism and operational risks. Automated triage of Dead Letter Queue (DLQ) messages or ledger discrepancies must not execute unverified write-offs or ledger reversals without explicit verification and policy controls.
+An LLM must not be responsible for financial authorization or balance changes. It can help classify incidents and summarize evidence, but financial actions remain subject to deterministic rules and human approval.
+
+When handling Dead Letter Queue (DLQ) messages or ledger discrepancies, automated operations need clear boundaries to prevent incorrect reversals or write-offs.
 
 ## Decision
-We implemented an **Automated Incident Triage Engine with Deterministic Guardrails**:
-1. **Separation of Diagnosis and Execution:**
-   * The diagnostic tools (`inspectDlqPayload`, `queryTransactionAuditTrail`, `inspectLedgerAccount`) gather forensic facts and inspect payloads.
-   * The triage engine **never** writes directly to financial balances or modifies transaction states without policy validation.
-2. **Deterministic Safety Policy Engine (`FinancialPolicyGuardrails`):**
-   Hard mathematical rules enforced in pure Java code, completely outside the LLM's prompt context:
-   * **Rule 1 (Financial Value Threshold):** Any transaction exceeding **$10,000.00** strictly requires **Human-in-the-Loop (HITL)** approval.
-   * **Rule 2 (Confidence Threshold):** If the agent confidence score is below **0.85**, automated actions are blocked.
-   * **Rule 3 (Irreversible Actions):** Permanent financial write-offs (`WRITE_OFF`) and manual ledger adjustments (`MANUAL_REVERSAL_REQUIRED`) are unconditionally gated behind human sign-off.
-3. **Immutable Forensic Persistence:**
-   Every triage decision, evaluated tool output, and confidence score is recorded to MongoDB for compliance auditing.
+We separated incident diagnosis from action execution using policy guardrails:
+1. **Diagnosis vs Execution:**
+   * Diagnostic tools (`DlqPayloadInspectionTool`, `MongoAuditInspectionTool`, `LedgerInspectionTool`) collect event data, inspect payloads, and check balances.
+   * The triage engine does not write directly to financial balances or modify transaction status.
+2. **Policy Guardrails (`FinancialPolicyGuardrails`):**
+   Evaluated in application code before any recommended action can proceed:
+   * **Value Threshold:** Any transaction exceeding **$10,000.00** requires **Human-in-the-Loop (HITL)** approval.
+   * **Confidence Threshold:** If the diagnostic confidence score is below **0.85**, automated actions are blocked.
+   * **Irreversible Actions:** Actions like `WRITE_OFF` and `MANUAL_REVERSAL_REQUIRED` always require operator approval.
+3. **Audit Records:**
+   Every triage decision, tool result, and confidence score is saved to MongoDB for audit review.
 
 ## Alternatives Considered
-* **Direct Database Remediation Loop:**
-  * *Rejected:* Unacceptable risk in financial systems. Unvalidated tool arguments could modify balances or write off funds without controls.
-* **Pure Hardcoded Rule Engine without Extensibility:**
-  * *Rejected:* Less flexible for parsing varied error messages, stack traces, and third-party payload schemas from cloud DLQs.
+* **Direct Database Remediation:**
+  * *Rejected:* Unvalidated actions could modify balances or write off funds without controls.
+* **Pure Hardcoded Rules without Extensibility:**
+  * *Rejected:* Less flexible for parsing unstructured error messages, stack traces, and variable payload schemas from cloud DLQs.
 
 ## Consequences & Trade-offs
-* **Safe Automation:** Low-risk, high-confidence events (transient retryable network timeouts, non-financial schema mismatches) are classified instantly, saving engineering on-call hours.
-* **Regulatory Compliance:** Auditable evidence and human approvals satisfy banking and regulatory compliance requirements.
+* **Bounded Automation:** Low-risk, high-confidence events (such as known retryable timeouts) can be classified automatically, reducing on-call triage effort.
+* **Auditability & Safety:** High-value or irreversible actions always require operator review and remain logged in MongoDB.

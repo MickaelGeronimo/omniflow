@@ -13,15 +13,15 @@
 
 ## 🏛️ Overview
 
-**OmniFlow** is a distributed financial orchestration and settlement engine designed to handle payments, double-entry ledger bookkeeping, asynchronous message settlement, and policy-governed incident triage.
+**OmniFlow** is a financial transaction orchestration and settlement engine built with Java 17 and Spring Boot.
 
-Built with **Hexagonal Architecture (Ports and Adapters)** and **Domain-Driven Design (DDD)**, OmniFlow addresses common engineering challenges in financial pipelines:
-* **Dual-Write Consistency:** Eliminates dual-write inconsistencies between local database state and event publishing using the **Transactional Outbox Pattern** with PostgreSQL `SKIP LOCKED` polling, providing at-least-once delivery semantics.
-* **Network Duplication & Retries:** Handled via a **Distributed Idempotency Engine** with SHA-256 fingerprinting, in-flight lease locking (2-minute lease with crash recovery), and 24-hour response caching.
-* **Ledger Imbalances & Concurrency Races:** Enforced via **Double-Entry Zero-Sum Invariants** ($\sum \text{Debits} = \sum \text{Credits}$) and JPA `@Version` **Optimistic Locking** on account balances.
-* **Multi-Party Marketplace Splits:** Atomically divides payments into buyer debit, merchant payout, platform take-rate commission, and chargeback escrow retention.
-* **Incident Triage with Safety Guardrails:** Diagnostic inspections governed by **Financial Policy Safety Guardrails** with Human-in-the-Loop (HITL) approval thresholds for values exceeding \$10,000.00.
-* **Security & Access Control:** Role-Based Access Control (RBAC) supporting OAuth2 JWT Bearer tokens and M2M API Keys, Token-Bucket Rate Limiting (Bucket4j), and Correlation ID MDC propagation.
+The project uses Hexagonal Architecture and DDD to separate the financial domain from infrastructure concerns:
+* **Dual-Write Consistency:** Prevents dual-write issues between PostgreSQL and AWS SNS/SQS using the Transactional Outbox pattern with `SKIP LOCKED` polling (at-least-once delivery).
+* **Duplicate Request Handling:** Idempotency engine using SHA-256 request fingerprinting, 2-minute in-flight leases, and cached responses.
+* **Ledger Balance Integrity:** Double-entry ledger with zero-sum invariant ($\sum \text{Debits} = \sum \text{Credits}$) and JPA `@Version` optimistic locking on account balances.
+* **Marketplace Splits:** Divides a payment into buyer debit, merchant payout, platform commission, and escrow reserve.
+* **Incident Triage:** Diagnoses DLQ messages and ledger issues, routing actions over \$10,000.00 or with confidence below 0.85 to human review.
+* **Security & Access Control:** Role-Based Access Control (RBAC) supporting OAuth2 JWT Bearer tokens and API keys, Bucket4j rate limiting, and correlation IDs in logs.
 
 ---
 
@@ -94,10 +94,10 @@ flowchart TD
 ## 🚀 Key Engineering Highlights
 
 ### 1. Mathematical Double-Entry General Ledger
-Every transaction consists of at least two posting legs. The domain model strictly enforces:
+Every transaction consists of at least two posting legs, enforcing the accounting equation:
 $$\sum \text{Debits} = \sum \text{Credits}$$
-* **Asset & Expense accounts:** Debits *increase* balance; Credits *decrease* balance.
-* **Liability, Equity & Revenue accounts:** Credits *increase* balance; Debits *decrease* balance.
+* **Asset & Expense accounts:** Debits increase balance; Credits decrease balance.
+* **Liability, Equity & Revenue accounts:** Credits increase balance; Debits decrease balance.
 * Supports **4-leg Marketplace Settlement Splits**:
   ```text
   $1,000.00 Gross Transaction
@@ -109,11 +109,11 @@ $$\sum \text{Debits} = \sum \text{Credits}$$
   Net Zero-Sum Invariant                          0.00
   ```
 * Overdraft protection is per-account, controlled by the `allowOverdraft` flag on `LedgerAccount`: accounts with `allowOverdraft = false` throw `InsufficientFundsException` on a resulting negative balance, while accounts explicitly flagged `allowOverdraft = true` (e.g. certain clearing/transit accounts) are permitted to go negative by design. This is a per-account policy, not a blanket rule across all account types.
-* Optimistic concurrency is verified via JPA `@Version` to prevent lost updates under race conditions.
+* Account balances use JPA `@Version` optimistic locking to reject concurrent conflicting updates.
 
 ### 2. Transactional Outbox with `FOR UPDATE SKIP LOCKED`
-Eliminates dual-write inconsistencies between the relational database and the AWS message broker:
-* The transaction state, journal entry, and outbox event are saved within the **same local ACID database transaction** (`@Transactional`).
+Avoids dual-write inconsistencies between the database and AWS SNS/SQS:
+* The transaction state, journal entry, and outbox event are saved in the same database transaction (`@Transactional`).
 * The `OutboxRelayScheduledWorker` claims batches using:
   ```sql
   SELECT * FROM outbox_events 
@@ -122,36 +122,36 @@ Eliminates dual-write inconsistencies between the relational database and the AW
   FOR UPDATE SKIP LOCKED 
   LIMIT 50;
   ```
-* Provides **at-least-once delivery semantics**. Events that fail 3 retry attempts transition to `DEAD_LETTER` for incident triage.
+* Provides at-least-once delivery semantics. Events that fail 3 retries transition to `DEAD_LETTER` for incident triage.
 
 ### 3. Distributed SHA-256 Idempotency Engine
-* Calculates a deterministic SHA-256 fingerprint over `referenceId|debtor|creditor|amount|currency|payload`.
-* Atomic state transitions:
-  * **`IN_FLIGHT`:** Holds an initial 2-minute lease lock via `REQUIRES_NEW`. If a node crashes during processing, the expired lease is safely reclaimed on retry.
-  * **`COMPLETED`:** Caches the serialized response and extends retention to 24 hours.
-  * **Tamper Detection:** Throws `ConflictingPayloadException` (HTTP 409 Conflict) if a previously seen key is reused with altered payment attributes.
+* Computes a SHA-256 fingerprint over `referenceId|debtor|creditor|amount|currency|payload`.
+* State transitions:
+  * **`IN_FLIGHT`:** Holds an initial 2-minute lease lock. If a worker crashes during processing, the expired lease is reclaimed on retry.
+  * **`COMPLETED`:** Caches the serialized response for 24 hours.
+  * **Payload Validation:** Throws `ConflictingPayloadException` (HTTP 409 Conflict) if a previously seen key is reused with altered payment attributes.
 
-### 4. AI Incident Triage — Architectural Preview (LLM-Ready)
-The current implementation uses a deterministic reasoning engine (`DeterministicIncidentReasoningEngine`) for reproducible incident classification and strict audit compliance. A Spring AI integration point (`SpringAiIncidentReasoningPreview`) is provided as an architectural preview for future LLM-backed reasoning. Financial actions remain protected by deterministic policy guardrails and human approval:
-* **Decoupled Strategy Port (`IncidentReasoningEngine`):** Allows hot-swapping between deterministic rule engines and experimental LLM chat models without changing core transaction or settlement code.
-* **Diagnostic Tool Execution:**
+### 4. Incident Triage & Policy Guardrails (LLM-Ready Preview)
+Incident triage uses a rule-based engine (`DeterministicIncidentReasoningEngine`) by default. A preview adapter (`SpringAiIncidentReasoningPreview`) is included to show how an LLM could be plugged in later. In either case, financial actions remain governed by deterministic rules and human review:
+* **Strategy Port (`IncidentReasoningEngine`):** Allows swapping between the rule engine and an LLM without changing transaction or settlement code.
+* **Diagnostic Tools:**
   * `DlqPayloadInspectionTool`: Diagnoses payload schema defects and transient network aborts.
   * `MongoAuditInspectionTool`: Reconstructs chronological audit trail from MongoDB.
   * `LedgerInspectionTool`: Verifies current ledger state and account balances.
-* **Configuration Integrity (`omniflow.ai.engine`):**
-  * `omniflow.ai.engine=deterministic` (Default): Runs deterministic diagnostics with zero external network dependencies.
-  * `omniflow.ai.engine=spring-ai`: Activates the architectural preview adapter (`SpringAiIncidentReasoningPreview`). The configured model (`preview-target-model=gpt-4o-mini`) represents the architectural target for future LLM chat models, rather than a hidden runtime dependency.
-* **Deterministic Safety Policy (`FinancialPolicyGuardrails`):**
-  * Auto-remediation is blocked and routed to **Human-in-the-Loop (HITL)** if:
+* **Engine Selection (`omniflow.ai.engine`):**
+  * `deterministic` (Default): Runs local rule-based diagnostics without external network calls.
+  * `spring-ai`: Activates the preview adapter (`SpringAiIncidentReasoningPreview`). The property `preview-target-model=gpt-4o-mini` documents the target model, with no live external calls made.
+* **Policy Guardrails (`FinancialPolicyGuardrails`):**
+  * Actions require human approval if:
     1. Transaction amount exceeds **$10,000.00**.
     2. Diagnostic confidence score is lower than **0.85**.
     3. Action requires permanent financial write-off or manual ledger adjustment.
-  * Decision rationale, forensic evidence, and verdict are persisted immutably in MongoDB.
+  * Decision rationale, diagnostic evidence, and verdict are persisted in MongoDB.
 
 ### 5. Chunk-Based Spring Batch 5 Reconciliation
-* Scalable `ledgerItemReader` queries PostgreSQL in bounded pages of 100 records via Keyset Cursor pagination, ensuring bounded memory consumption proportional to the configured page/chunk size.
-* Stateless `@StepScope` writer and `ExecutionContextPromotionListener` accumulate audit metrics and forensic discrepancy evidence directly within the Spring Batch execution context, eliminating mutable state in singleton beans.
-* Uploads complete JSON reconciliation summaries directly to **AWS S3**, including execution status, audited counts, and bounded discrepancy breakdown (`discrepancies`).
+* `ledgerItemReader` reads PostgreSQL using keyset pagination with pages of 100 records (`WHERE entry_id > :lastId AND timestamp <= :cutoff ORDER BY entry_id ASC`). The batch processes one chunk at a time instead of loading the full reconciliation set into memory.
+* Uses `@StepScope` reader/writer components and `ExecutionContextPromotionListener` to pass audit counts and discrepancy lists through the Spring Batch step context without mutable state in singleton beans.
+* Writes a JSON reconciliation summary to **AWS S3**, containing execution metrics and any detected ledger discrepancies (`discrepancies`).
 
 ### 6. Role-Based Access Control (RBAC) & Security
 * Dual authentication support: **OAuth2 JWT Bearer Tokens** + **M2M API Key Header (`X-API-KEY`)**.
@@ -162,19 +162,19 @@ The current implementation uses a deterministic reasoning engine (`Deterministic
   * `/actuator/health`: Public probe for Kubernetes liveness/readiness.
   * `/actuator/prometheus`: Protected for monitoring infrastructure.
 
-### 7. Distributed Systems Resilience Matrix
+### 7. Failure Scenarios & Handling
 
-| Scenario / Hazard | Failure Mode | OmniFlow Defense Mechanism | Verification Test |
+| Scenario | Failure Mode | OmniFlow Handling | Verification Test |
 |---|---|---|---|
-| **Dual-Write Hazard** | DB commits but message broker unavailable | **Transactional Outbox Pattern** (`outbox_events` written atomically in same ACID TX; polled via `FOR UPDATE SKIP LOCKED`). | `FinancialOrchestratorService` |
-| **Worker Pod Crash** | Pod evicted while relaying event in `PROCESSING` | **Outbox Lease Recovery**: `locked_at < now - 5m` reclaims stale events automatically. | `PostgresOutboxRepositoryAdapter` |
-| **Downstream Throttling** | SNS/SQS rejects events with 429 / backpressure | **Exponential Backoff with Full Random Jitter**: $\min(300\text{s}, 2 \cdot 2^{\text{retry}}) + \text{jitter}$. | `OutboxRelayScheduledWorker` |
-| **SQS Duplicate Delivery** | At-least-once delivery duplicates settlement message | **Consumer Deduplication Store**: `processed_settlement_events` atomic reservation token + domain idempotency no-op. | `SqsConsumerIdempotencyTest`, `SqsConsumerConcurrentRaceTest` |
+| **Dual-Write** | DB commits but message broker unavailable | **Transactional Outbox** (`outbox_events` written in same ACID TX; polled via `FOR UPDATE SKIP LOCKED`). | `FinancialOrchestratorService` |
+| **Worker Crash** | Pod evicted while relaying event in `PROCESSING` | **Outbox Lease Recovery**: `locked_at < now - 5m` reclaims stale events automatically. | `PostgresOutboxRepositoryAdapter` |
+| **Downstream Throttling** | SNS/SQS rejects events with 429 / backpressure | **Exponential Backoff with Jitter**: $\min(300\text{s}, 2 \cdot 2^{\text{retry}}) + \text{jitter}$. | `OutboxRelayScheduledWorker` |
+| **SQS Duplicate Delivery** | At-least-once delivery duplicates settlement message | **Consumer Deduplication Store**: `processed_settlement_events` atomic reservation + idempotency check. | `SqsConsumerIdempotencyTest`, `SqsConsumerConcurrentRaceTest` |
 | **Concurrent Debit Race** | Multiple threads attempt simultaneous balance depletion | **JPA `@Version` Optimistic Locking** rejecting concurrent updates without data corruption. | `LedgerOptimisticLockingConcurrencyTest` |
 | **Tampered Request Payload** | Identical idempotency key reused with modified amount | **SHA-256 Fingerprint Validation** returning `409 Conflict / ConflictingPayloadException`. | `FinancialOrchestratorService` |
-| **Multi-Currency Inconsistency** | Leg posted in EUR to USD ledger account | **Strict Currency Validation** throwing explicit domain `CurrencyMismatchException`. | `DoubleEntryLedgerTest` |
+| **Multi-Currency Error** | Leg posted in EUR to USD ledger account | **Currency Validation** throwing explicit domain `CurrencyMismatchException`. | `DoubleEntryLedgerTest` |
 | **Large Batch Memory Spike** | Millions of ledger entries scanned during reconciliation | **Keyset Cursor Pagination** (`WHERE entry_id > :lastId AND timestamp <= :cutoff`) with bounded memory proportional to page size. | `ReconciliationKeysetPaginationTest` |
-| **Poison Pill Message** | Corrupted message body crashes consumer loop | **SQS Dead-Letter Queue (DLQ)** redrive after 3 attempts + automated incident triage. | `IncidentTriageTest` |
+| **Poison Pill Message** | Corrupted message body crashes consumer loop | **SQS Dead-Letter Queue (DLQ)** redrive after 3 attempts + incident triage. | `IncidentTriageTest` |
 
 ---
 
@@ -182,16 +182,16 @@ The current implementation uses a deterministic reasoning engine (`Deterministic
 
 | Domain | Technology | Purpose |
 |---|---|---|
-| **Language** | Java 17 LTS | Records, Pattern Matching, Sealed Types, Pure Domain Hexagonal |
+| **Language** | Java 17 LTS | Records, Pattern Matching, Sealed Types, Hexagonal Architecture |
 | **Framework** | Spring Boot 3.3.4 | Core framework, Actuator, Micrometer Prometheus |
 | **Relational DB** | PostgreSQL 16 | ACID financial transactions, Flyway migrations |
-| **NoSQL DB** | MongoDB 7.0 | Append-only immutable audit logs & triage reasoning trails |
+| **NoSQL DB** | MongoDB 7.0 | Append-only audit logs & triage reasoning trails |
 | **Cloud Services** | Spring Cloud AWS 3.2.1 | SQS, SNS (Fan-out), S3 |
-| **Cloud Mock** | LocalStack 3.7 | Local AWS emulation with automated shell bootstrapping |
-| **Batch Engine** | Spring Batch 5 | Nightly Ledger Reconciliation with Keyset Cursor Reader |
-| **AI Preview** | Spring AI Core | Architectural preview hook for LLM-backed incident reasoning |
-| **Resilience** | Bucket4j | Token-bucket rate limiting defense |
-| **Quality & Arch** | ArchUnit + JUnit 5 | Architectural boundary verification & Concurrency tests |
+| **Cloud Mock** | LocalStack 3.7 | Local AWS emulation with bootstrapping scripts |
+| **Batch Engine** | Spring Batch 5 | Ledger Reconciliation with Keyset Cursor Reader |
+| **AI Preview** | Spring AI Core | Preview adapter for future LLM-backed incident reasoning |
+| **Rate Limiting** | Bucket4j | Token-bucket rate limiting filter |
+| **Quality & Arch** | ArchUnit + JUnit 5 | Hexagonal boundary tests, Concurrency tests, Testcontainers |
 
 ---
 
@@ -270,7 +270,7 @@ curl -X POST "http://localhost:8080/api/v1/reconciliation/run?date=2026-09-11" \
 
 ## 🛡️ Architecture & Verification
 
-OmniFlow enforces strict Hexagonal Architecture constraints validated on every build via **ArchUnit**:
+Hexagonal architecture boundaries are enforced by **ArchUnit** tests on every build:
 
 ```java
 layeredArchitecture()

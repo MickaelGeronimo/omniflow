@@ -4,31 +4,31 @@
 **Accepted**
 
 ## Context
-In payment gateways and distributed settlement pipelines, network timeouts frequently cause client SDKs, upstream checkout frontends, or automated retriers to resend requests. Without idempotency controls:
-1. Double-charges occur when duplicate requests hit the payment orchestrator concurrently.
-2. Attackers or buggy clients can reuse an idempotency key with altered payload values (e.g. attempting to pay a higher amount or change recipient under a previously approved key).
+In payment and settlement pipelines, network timeouts cause clients or automated retriers to resend requests. Without idempotency controls:
+1. Duplicate requests cause double-charging or repeated ledger postings.
+2. Reusing an idempotency key with modified amounts or accounts must be detected and rejected.
 
 ## Decision
-We implemented a **Stateful Distributed Idempotency Engine** with cryptographic payload fingerprinting:
-1. **Cryptographic Fingerprint:**
-   A deterministic SHA-256 hash is computed across all critical request attributes:
+We implemented a distributed idempotency engine using PostgreSQL and SHA-256 request fingerprinting:
+1. **Request Fingerprint:**
+   A SHA-256 hash is computed across payment fields:
    $$\text{Hash} = \text{SHA-256}(\text{referenceId} \parallel \text{debtor} \parallel \text{creditor} \parallel \text{amount} \parallel \text{currency} \parallel \text{description})$$
-2. **Three-Phase State Machine:**
+2. **Lifecycle:**
    * **`tryAcquire(idempotencyKey, fingerprint)`:**
      * If key is new: Inserts record in state `IN_FLIGHT` with an initial 2-minute lease.
-     * If key exists and is `COMPLETED`: Returns cached `TransactionResult` without executing business logic.
+     * If key exists and is `COMPLETED`: Returns cached `TransactionResult` without re-executing.
      * If key exists with a *different* fingerprint: Throws `ConflictingPayloadException` (HTTP 409 Conflict).
-     * If key exists and is `IN_FLIGHT` with an expired lease (> 2 min): Reclaims the lock to recover from previous node crashes.
-     * If key exists and is currently active `IN_FLIGHT`: Rejects concurrent execution with lock contention.
-   * **`markCompleted(idempotencyKey, result)`:** Caches the final JSON result, transitions state to `COMPLETED`, and extends retention to 24 hours (`expires_at = now() + 24h`).
-   * **`releaseLock(idempotencyKey)`:** Releases the lock if business logic threw an unexpected transient exception, allowing safe client retries.
+     * If key exists in `IN_FLIGHT` with expired lease (> 2 min): Reclaims the lease to recover from previous worker crashes.
+     * If key is actively `IN_FLIGHT`: Rejects concurrent execution.
+   * **`markCompleted(idempotencyKey, result)`:** Saves the JSON result, transitions state to `COMPLETED`, and sets retention to 24 hours.
+   * **`releaseLock(idempotencyKey)`:** Clears `IN_FLIGHT` on transient failure, allowing clean client retries.
 
 ## Alternatives Considered
 * **Redis Distributed Lock (Redlock):**
-  * *Cons:* Redis memory volatility. If Redis restarts or drops keys, duplicate financial transactions can be executed. Storing idempotency keys in PostgreSQL guarantees ACID durability alongside ledger records.
-* **Simple In-Memory Cache (Caffeine/Guava):**
-  * *Cons:* Fails completely in multi-pod Kubernetes deployments where requests are load-balanced across instances.
+  * *Cons:* Storing idempotency keys in PostgreSQL guarantees durability alongside ledger records without managing a separate Redis cluster.
+* **In-Memory Cache (Caffeine/Guava):**
+  * *Cons:* Does not work across multiple application instances behind a load balancer.
 
 ## Consequences & Trade-offs
-* **Zero Duplicate Debits:** Designed to prevent duplicate debits under concurrent and repeated client requests.
-* **Tampering Prevention:** Identical keys with modified amounts or accounts are immediately blocked and flagged.
+* **Duplicate Prevention:** Prevents double-charging on network retries and concurrent client submissions.
+* **Conflict Detection:** Reusing a key with different parameters returns HTTP 409 Conflict.
