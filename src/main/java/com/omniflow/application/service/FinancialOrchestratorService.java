@@ -193,11 +193,24 @@ public class FinancialOrchestratorService implements SubmitTransactionUseCase {
                          command.creditorAccount().toString() + "|" +
                          command.amount().amount().toPlainString() + "|" +
                          command.amount().currencyCode() + "|" +
-                         (command.description() != null ? command.description() : "");
+                         (command.description() != null ? command.description() : "") + "|" +
+                         splitFingerprintSegment(command.splitAllocation());
             byte[] hash = digest.digest(raw.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(hash);
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException("SHA-256 digest unavailable", e);
         }
+    }
+
+    private String splitFingerprintSegment(SplitAllocation split) {
+        if (split == null) {
+            return "NO_SPLIT";
+        }
+        return split.feeAccount().toString() + "|" +
+               split.feeAmount().amount().toPlainString() + "|" +
+               split.feeAmount().currencyCode() + "|" +
+               split.reserveAccount().toString() + "|" +
+               split.reserveAmount().amount().toPlainString() + "|" +
+               split.reserveAmount().currencyCode();
     }
 }

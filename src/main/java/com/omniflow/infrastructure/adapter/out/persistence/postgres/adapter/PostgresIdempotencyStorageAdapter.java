@@ -88,7 +88,10 @@ public class PostgresIdempotencyStorageAdapter implements IdempotencyStoragePort
     }
 
     @Override
-    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    @Transactional // Propagacao padrao (REQUIRED): precisa participar da MESMA transacao
+    // que gravou as mudancas no ledger. Se usassemos REQUIRES_NEW aqui, este commit
+    // aconteceria de forma independente e antes do commit da transacao de negocio,
+    // criando um registro COMPLETED fantasma caso o commit externo falhasse depois.
     public void markCompleted(String idempotencyKey, TransactionResult result) {
         repo.findById(idempotencyKey).ifPresent(entity -> {
             try {
