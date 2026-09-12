@@ -21,9 +21,9 @@ As financial ledgers grow into millions of journal entries and outbox events, tw
 4. **Decoupled IncidentReasoningEngine:**
    * Domain and audit agents interact exclusively with the IncidentReasoningEngine port.
    * DeterministicIncidentReasoningEngine serves production traffic with zero hallucinations.
-   * SpringAiIncidentReasoningEngine provides an architectural preview hook for LLM reasoning while keeping FinancialPolicyGuardrails strictly external to the AI model.
+   * SpringAiIncidentReasoningPreview provides an architectural preview hook for LLM reasoning while keeping FinancialPolicyGuardrails strictly external to the AI model.
 
 ## Consequences & Trade-offs
-* **Scalability:** Reconciliation memory footprint and database query execution remain bounded and (1)$ regardless of table size.
+* **Scalability:** Reconciliation memory footprint and database query execution remain strictly bounded and proportional to the configured chunk size regardless of table size.
 * **Resilience:** Guaranteed automated recovery from worker crashes without manual operational intervention.
 * **Safety:** Financial decisions, balance validations, and human-in-the-loop limits are mathematically enforced outside the AI context.

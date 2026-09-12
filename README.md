@@ -132,7 +132,7 @@ Eliminates dual-write inconsistencies between the relational database and the AW
   * **Tamper Detection:** Throws `ConflictingPayloadException` (HTTP 409 Conflict) if a previously seen key is reused with altered payment attributes.
 
 ### 4. AI Incident Triage — Architectural Preview (LLM-Ready)
-The current implementation uses a deterministic reasoning engine (`DeterministicIncidentReasoningEngine`) for reproducible incident classification and strict audit compliance. A Spring AI integration point (`SpringAiIncidentReasoningEngine`) is provided as an architectural preview for future LLM-backed reasoning. Financial actions remain protected by deterministic policy guardrails and human approval:
+The current implementation uses a deterministic reasoning engine (`DeterministicIncidentReasoningEngine`) for reproducible incident classification and strict audit compliance. A Spring AI integration point (`SpringAiIncidentReasoningPreview`) is provided as an architectural preview for future LLM-backed reasoning. Financial actions remain protected by deterministic policy guardrails and human approval:
 * **Decoupled Strategy Port (`IncidentReasoningEngine`):** Allows hot-swapping between deterministic rule engines and experimental LLM chat models without changing core transaction or settlement code.
 * **Diagnostic Tool Execution:**
   * `DlqPayloadInspectionTool`: Diagnoses payload schema defects and transient network aborts.
@@ -146,7 +146,7 @@ The current implementation uses a deterministic reasoning engine (`Deterministic
   * Decision rationale, forensic evidence, and verdict are persisted immutably in MongoDB.
 
 ### 5. High-Throughput Chunk-Based Spring Batch 5 Reconciliation
-* Scalable `PagedLedgerItemReader` queries PostgreSQL in bounded pages of 100 records, ensuring constant $O(1)$ memory consumption.
+* Scalable `ledgerItemReader` queries PostgreSQL in bounded pages of 100 records via Keyset Cursor pagination, ensuring bounded memory consumption proportional to the configured page/chunk size.
 * Stateless `@StepScope` writer and `ExecutionContextPromotionListener` accumulate audit metrics directly within the Spring Batch execution context, eliminating mutable state in singleton beans.
 * Uploads complete JSON reconciliation summaries directly to **AWS S3**.
 
@@ -166,11 +166,11 @@ The current implementation uses a deterministic reasoning engine (`Deterministic
 | **Dual-Write Hazard** | DB commits but message broker unavailable | **Transactional Outbox Pattern** (`outbox_events` written atomically in same ACID TX; polled via `FOR UPDATE SKIP LOCKED`). | `FinancialOrchestratorService` |
 | **Worker Pod Crash** | Pod evicted while relaying event in `PROCESSING` | **Outbox Lease Recovery**: `locked_at < now - 5m` reclaims stale events automatically. | `PostgresOutboxRepositoryAdapter` |
 | **Downstream Throttling** | SNS/SQS rejects events with 429 / backpressure | **Exponential Backoff with Full Random Jitter**: $\min(300\text{s}, 2 \cdot 2^{\text{retry}}) + \text{jitter}$. | `OutboxRelayScheduledWorker` |
-| **SQS Duplicate Delivery** | At-least-once delivery duplicates settlement message | **Consumer Deduplication Store**: `processed_settlement_events` relational table + domain idempotency no-op. | `SqsConsumerIdempotencyTest` |
+| **SQS Duplicate Delivery** | At-least-once delivery duplicates settlement message | **Consumer Deduplication Store**: `processed_settlement_events` atomic reservation token + domain idempotency no-op. | `SqsConsumerIdempotencyTest`, `SqsConsumerConcurrentRaceTest` |
 | **Concurrent Debit Race** | Multiple threads attempt simultaneous balance depletion | **JPA `@Version` Optimistic Locking** rejecting concurrent updates without data corruption. | `LedgerOptimisticLockingConcurrencyTest` |
 | **Tampered Request Payload** | Identical idempotency key reused with modified amount | **SHA-256 Fingerprint Validation** returning `409 Conflict / ConflictingPayloadException`. | `FinancialOrchestratorService` |
 | **Multi-Currency Inconsistency** | Leg posted in EUR to USD ledger account | **Strict Currency Validation** throwing explicit domain `CurrencyMismatchException`. | `DoubleEntryLedgerTest` |
-| **Large Batch Memory Spike** | Millions of ledger entries scanned during reconciliation | **Keyset Cursor Pagination** (`WHERE entry_id > :lastId AND timestamp <= :cutoff`) with $O(1)$ memory. | `ReconciliationBatchLauncher` |
+| **Large Batch Memory Spike** | Millions of ledger entries scanned during reconciliation | **Keyset Cursor Pagination** (`WHERE entry_id > :lastId AND timestamp <= :cutoff`) with bounded memory proportional to page size. | `ReconciliationKeysetPaginationTest` |
 | **Poison Pill Message** | Corrupted message body crashes consumer loop | **SQS Dead-Letter Queue (DLQ)** redrive after 3 attempts + automated incident triage. | `IncidentTriageTest` |
 
 ---

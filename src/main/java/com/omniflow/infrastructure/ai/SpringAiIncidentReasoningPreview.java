@@ -6,7 +6,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
- * Architectural integration point and preview hook for future LLM-backed triage.
+ * Architectural integration point and preview hook for future LLM-backed incident triage.
  *
  * NOTE: Architectural integration point only. No external LLM network invocation
  * is performed in the current implementation. Serves as an extensible port adapter
@@ -14,9 +14,9 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @ConditionalOnProperty(name = "omniflow.ai.engine", havingValue = "spring-ai")
-public class SpringAiIncidentReasoningEngine implements IncidentReasoningEngine {
+public class SpringAiIncidentReasoningPreview implements IncidentReasoningEngine {
 
-    private static final Logger log = LoggerFactory.getLogger(SpringAiIncidentReasoningEngine.class);
+    private static final Logger log = LoggerFactory.getLogger(SpringAiIncidentReasoningPreview.class);
     private final DeterministicIncidentReasoningEngine fallbackEngine = new DeterministicIncidentReasoningEngine();
 
     @Override

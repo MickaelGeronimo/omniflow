@@ -100,6 +100,13 @@ public class SqsSettlementConsumer {
                 return;
             }
 
+            // Atomic Deduplication Token: Closes the TOCTOU concurrency race window before executing balance modifications
+            int inserted = processedEventRepo.insertIfNotExists(eventId, transactionId, correlationId, Instant.now());
+            if (inserted == 0) {
+                log.info("[AWS-SQS] Duplicate event [{}] detected via atomic token reservation for tx [{}]. Skipping idempotently.", eventId, transactionId);
+                return;
+            }
+
             // Record raw audit event in MongoDB
             auditStore.recordAuditEvent(transactionId, "SQS_SETTLEMENT_RECEIVED", "omniflow-worker", data);
 
@@ -137,10 +144,6 @@ public class SqsSettlementConsumer {
             ledgerRepo.saveAccount(creditor);
             ledgerRepo.saveJournalEntry(settlementJournal);
             transactionRepo.save(tx);
-
-            processedEventRepo.save(new com.omniflow.infrastructure.adapter.out.persistence.postgres.entity.ProcessedSettlementEventJpaEntity(
-                    eventId, transactionId, correlationId, Instant.now()
-            ));
 
             auditStore.recordAuditEvent(transactionId, "SETTLED_COMPLETED", "omniflow-worker", Map.of(
                     "status", "SETTLED",
