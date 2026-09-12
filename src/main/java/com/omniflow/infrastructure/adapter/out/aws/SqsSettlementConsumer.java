@@ -38,6 +38,7 @@ public class SqsSettlementConsumer {
     private final TransactionRepositoryPort transactionRepo;
     private final LedgerRepositoryPort ledgerRepo;
     private final AuditEventStorePort auditStore;
+    private final com.omniflow.infrastructure.adapter.out.persistence.postgres.repository.SpringDataProcessedEventRepository processedEventRepo;
     private final ObjectMapper objectMapper;
     private final Counter settledCounter;
     private final Counter poisonPillCounter;
@@ -47,11 +48,13 @@ public class SqsSettlementConsumer {
             TransactionRepositoryPort transactionRepo,
             LedgerRepositoryPort ledgerRepo,
             AuditEventStorePort auditStore,
+            com.omniflow.infrastructure.adapter.out.persistence.postgres.repository.SpringDataProcessedEventRepository processedEventRepo,
             ObjectMapper objectMapper,
             MeterRegistry meterRegistry) {
         this.transactionRepo = transactionRepo;
         this.ledgerRepo = ledgerRepo;
         this.auditStore = auditStore;
+        this.processedEventRepo = processedEventRepo;
         this.objectMapper = objectMapper;
 
         this.settledCounter = Counter.builder("omniflow.transactions.settled")
@@ -91,12 +94,23 @@ public class SqsSettlementConsumer {
                 return;
             }
 
+            String eventId = (String) data.getOrDefault("eventId", "SETTLE-EVT-" + transactionId);
+            if (processedEventRepo.existsById(eventId)) {
+                log.info("[AWS-SQS] Duplicate event [{}] detected for tx [{}]. Skipping idempotently.", eventId, transactionId);
+                return;
+            }
+
             // Record raw audit event in MongoDB
             auditStore.recordAuditEvent(transactionId, "SQS_SETTLEMENT_RECEIVED", "omniflow-worker", data);
 
             // Execute Settle Step: Debit Transit, Credit Creditor
             Transaction tx = transactionRepo.findById(TransactionId.of(transactionId))
                     .orElseThrow(() -> new IllegalStateException("Transaction not found: " + transactionId));
+
+            if (tx.getStatus() == com.omniflow.domain.model.TransactionStatus.SETTLED) {
+                log.info("[AWS-SQS] Transaction [{}] is already SETTLED. Skipping duplicate settlement idempotently.", transactionId);
+                return;
+            }
 
             LedgerAccount transit = ledgerRepo.findAccountById(SETTLEMENT_TRANSIT_ACCOUNT)
                     .orElseThrow(() -> new IllegalStateException("Transit account missing"));
@@ -123,6 +137,10 @@ public class SqsSettlementConsumer {
             ledgerRepo.saveAccount(creditor);
             ledgerRepo.saveJournalEntry(settlementJournal);
             transactionRepo.save(tx);
+
+            processedEventRepo.save(new com.omniflow.infrastructure.adapter.out.persistence.postgres.entity.ProcessedSettlementEventJpaEntity(
+                    eventId, transactionId, correlationId, Instant.now()
+            ));
 
             auditStore.recordAuditEvent(transactionId, "SETTLED_COMPLETED", "omniflow-worker", Map.of(
                     "status", "SETTLED",

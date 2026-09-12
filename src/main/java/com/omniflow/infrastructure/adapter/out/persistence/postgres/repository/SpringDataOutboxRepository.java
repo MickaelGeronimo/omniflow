@@ -19,12 +19,15 @@ public interface SpringDataOutboxRepository extends JpaRepository<OutboxEventJpa
     @QueryHints({@QueryHint(name = "jakarta.persistence.lock.timeout", value = "-2")}) // -2 is SKIP LOCKED in Hibernate
     @Query("""
         SELECT e FROM OutboxEventJpaEntity e
-        WHERE (e.status = 'PENDING' OR (e.status = 'FAILED' AND e.retryCount < :maxRetries AND (e.nextRetryAt IS NULL OR e.nextRetryAt <= :now)))
+        WHERE (e.status = 'PENDING'
+           OR (e.status = 'PROCESSING' AND e.lockedAt < :leaseCutoff)
+           OR (e.status = 'FAILED' AND e.retryCount < :maxRetries AND (e.nextRetryAt IS NULL OR e.nextRetryAt <= :now)))
         ORDER BY e.createdAt ASC
     """)
     List<OutboxEventJpaEntity> findClaimableEventsWithSkipLocked(
             @Param("maxRetries") int maxRetries,
             @Param("now") Instant now,
+            @Param("leaseCutoff") Instant leaseCutoff,
             Pageable pageable
     );
 }

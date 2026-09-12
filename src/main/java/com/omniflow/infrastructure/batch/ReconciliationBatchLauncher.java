@@ -18,6 +18,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.*;
 
@@ -39,7 +40,7 @@ public class ReconciliationBatchLauncher implements ReconcileLedgerUseCase {
             LedgerRepositoryPort ledgerRepository,
             S3StoragePort s3Storage,
             ObjectMapper objectMapper,
-            @Value("${omniflow.aws.s3-bucket-name:omniflow-reconciliation-reports}") String s3BucketName) {
+            @Value("") String s3BucketName) {
         this.jobLauncher = jobLauncher;
         this.reconciliationJob = reconciliationJob;
         this.ledgerRepository = ledgerRepository;
@@ -49,24 +50,35 @@ public class ReconciliationBatchLauncher implements ReconcileLedgerUseCase {
     }
 
     /**
-     * Chunk-based Paged ItemReader:
-     * Reads from PostgreSQL in bounded pages of 100 records.
-     * Guarantees O(1) constant memory consumption regardless of dataset size.
+     * Keyset (Cursor) ItemReader with Temporal Cutoff:
+     * Reads from PostgreSQL in bounded batches of 100 using 'WHERE entry_id > :lastEntryId AND timestamp <= :cutoff'.
+     * Avoids O(N) offset degradation and phantom skipping while guaranteeing reproducible snapshots.
      */
     @Bean
     @StepScope
-    public ItemReader<JournalEntry> ledgerItemReader() {
+    public ItemReader<JournalEntry> ledgerItemReader(
+            @Value("#{jobParameters['cutoffTimestamp']}") String cutoffParam) {
+        final Instant cutoff = (cutoffParam != null && !cutoffParam.isBlank())
+                ? Instant.parse(cutoffParam)
+                : Instant.now();
+
         return new ItemReader<>() {
-            private int page = 0;
+            private String lastEntryId = null;
             private Iterator<JournalEntry> currentChunk = Collections.emptyIterator();
+            private boolean exhausted = false;
 
             @Override
             public synchronized JournalEntry read() {
+                if (exhausted) {
+                    return null;
+                }
                 if (!currentChunk.hasNext()) {
-                    List<JournalEntry> nextBatch = ledgerRepository.findJournalEntriesPaged(page++, 100);
+                    List<JournalEntry> nextBatch = ledgerRepository.findJournalEntriesKeyset(lastEntryId, cutoff, 100);
                     if (nextBatch.isEmpty()) {
+                        exhausted = true;
                         return null; // signals EOF to Spring Batch
                     }
+                    lastEntryId = nextBatch.get(nextBatch.size() - 1).getEntryId();
                     currentChunk = nextBatch.iterator();
                 }
                 return currentChunk.next();
@@ -103,29 +115,32 @@ public class ReconciliationBatchLauncher implements ReconcileLedgerUseCase {
     @Override
     public ReconciliationResult runNightlyReconciliation(LocalDate date) {
         String jobId = "RECON-" + date + "-" + System.currentTimeMillis();
+        Instant cutoff = Instant.now();
 
         try {
             JobParameters params = new JobParametersBuilder()
                     .addString("jobId", jobId)
                     .addLocalDate("date", date)
+                    .addString("cutoffTimestamp", cutoff.toString())
                     .toJobParameters();
 
-            log.info("[SPRING-BATCH] Starting Nightly Financial Reconciliation Job [{}] for date [{}]", jobId, date);
+            log.info("[SPRING-BATCH] Starting Nightly Financial Reconciliation Job [{}] for date [{}] with cutoff [{}]",
+                    jobId, date, cutoff);
             JobExecution execution = jobLauncher.run(reconciliationJob, params);
 
             long total = execution.getExecutionContext().getLong("totalAudited", 0L);
             long discrepancies = execution.getExecutionContext().getLong("discrepancyCount", 0L);
             long matched = execution.getExecutionContext().getLong("matchedCount", 0L);
 
-            // Generate JSON summary report for AWS S3
-            Map<String, Object> summaryReport = Map.of(
-                    "jobId", jobId,
-                    "reconciliationDate", date.toString(),
-                    "totalAudited", total,
-                    "matchedCount", matched,
-                    "discrepancyCount", discrepancies,
-                    "status", execution.getStatus().name()
-            );
+            // Generate detailed JSON summary report for AWS S3 with evidence metadata
+            Map<String, Object> summaryReport = new LinkedHashMap<>();
+            summaryReport.put("jobId", jobId);
+            summaryReport.put("reconciliationDate", date.toString());
+            summaryReport.put("cutoffTimestamp", cutoff.toString());
+            summaryReport.put("totalAudited", total);
+            summaryReport.put("matchedCount", matched);
+            summaryReport.put("discrepancyCount", discrepancies);
+            summaryReport.put("status", execution.getStatus().name());
 
             byte[] reportBytes = objectMapper.writerWithDefaultPrettyPrinter()
                     .writeValueAsString(summaryReport)

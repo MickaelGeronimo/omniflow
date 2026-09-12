@@ -71,7 +71,7 @@ public class SecurityConfig {
     }
 
     @Bean
-    public JwtDecoder jwtDecoder(@Value("${omniflow.security.jwt-secret:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}") String secret) {
+    public JwtDecoder jwtDecoder(@Value("${omniflow.security.jwt-secret}") String secret) {
         byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
         SecretKey key = new SecretKeySpec(keyBytes, "HmacSHA256");
         return NimbusJwtDecoder.withSecretKey(key).build();

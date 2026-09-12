@@ -4,6 +4,7 @@ import com.omniflow.domain.ledger.JournalEntry;
 import com.omniflow.domain.ledger.LedgerAccount;
 import com.omniflow.domain.model.AccountId;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -18,4 +19,6 @@ public interface LedgerRepositoryPort {
     List<JournalEntry> findAllJournalEntries();
 
     List<JournalEntry> findJournalEntriesPaged(int page, int size);
+
+    List<JournalEntry> findJournalEntriesKeyset(String lastEntryId, Instant cutoff, int limit);
 }

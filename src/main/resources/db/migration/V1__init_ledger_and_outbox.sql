@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS posting_legs (
 CREATE INDEX IF NOT EXISTS idx_legs_entry ON posting_legs(entry_id);
 CREATE INDEX IF NOT EXISTS idx_legs_acc_type ON posting_legs(account_id, posting_type);
 
--- 6. Transactional Outbox (Guaranteed Exactly-Once Event Delivery to AWS SNS)
+-- 6. Transactional Outbox (At-Least-Once Event Delivery to AWS SNS with Consumer Deduplication)
 CREATE TABLE IF NOT EXISTS outbox_events (
     id VARCHAR(64) PRIMARY KEY,
     aggregate_type VARCHAR(64) NOT NULL,

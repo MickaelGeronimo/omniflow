@@ -24,6 +24,9 @@ public class OutboxEventJpaEntity {
     @Column(name = "event_type", nullable = false, length = 64)
     private String eventType;
 
+    @Column(name = "correlation_id", length = 64)
+    private String correlationId;
+
     @Column(name = "payload", nullable = false, columnDefinition = "TEXT")
     private String payload;
 
@@ -51,12 +54,14 @@ public class OutboxEventJpaEntity {
     public OutboxEventJpaEntity() {}
 
     public OutboxEventJpaEntity(String id, String aggregateType, String aggregateId, String eventType,
-                                String payload, String status, int retryCount, Instant nextRetryAt,
-                                String lockedBy, Instant lockedAt, Instant createdAt, Instant publishedAt) {
+                                String correlationId, String payload, String status, int retryCount,
+                                Instant nextRetryAt, String lockedBy, Instant lockedAt,
+                                Instant createdAt, Instant publishedAt) {
         this.id = id;
         this.aggregateType = aggregateType;
         this.aggregateId = aggregateId;
         this.eventType = eventType;
+        this.correlationId = correlationId;
         this.payload = payload;
         this.status = status;
         this.retryCount = retryCount;
@@ -71,6 +76,8 @@ public class OutboxEventJpaEntity {
     public String getAggregateType() { return aggregateType; }
     public String getAggregateId() { return aggregateId; }
     public String getEventType() { return eventType; }
+    public String getCorrelationId() { return correlationId; }
+    public void setCorrelationId(String correlationId) { this.correlationId = correlationId; }
     public String getPayload() { return payload; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }

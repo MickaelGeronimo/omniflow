@@ -1,5 +1,6 @@
 package com.omniflow.domain.ledger;
 
+import com.omniflow.domain.exception.CurrencyMismatchException;
 import com.omniflow.domain.exception.InsufficientFundsException;
 import com.omniflow.domain.model.AccountId;
 import com.omniflow.domain.model.Money;
@@ -40,6 +41,11 @@ public class LedgerAccount {
         if (!leg.accountId().equals(this.id)) {
             throw new IllegalArgumentException(
                     String.format("Leg account [%s] does not match ledger account [%s]", leg.accountId(), this.id));
+        }
+        if (!leg.amount().currencyCode().equalsIgnoreCase(this.currency)) {
+            throw new CurrencyMismatchException(
+                    String.format("Posting leg currency [%s] does not match ledger account [%s] currency [%s]",
+                            leg.amount().currencyCode(), this.id, this.currency));
         }
 
         Money delta = leg.amount();

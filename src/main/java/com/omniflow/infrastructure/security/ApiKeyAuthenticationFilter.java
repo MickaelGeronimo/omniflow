@@ -12,11 +12,14 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.List;
 
 /**
  * Service-to-Service API Key authentication filter supporting M2M automation
  * alongside OAuth2 JWT Bearer tokens.
+ * Enforces constant-time cryptographic verification to eliminate timing attacks.
  */
 @Component
 public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
@@ -25,7 +28,7 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
 
     private final String configuredApiKey;
 
-    public ApiKeyAuthenticationFilter(@Value("${omniflow.security.api-key:omniflow-master-key}") String configuredApiKey) {
+    public ApiKeyAuthenticationFilter(@Value("") String configuredApiKey) {
         this.configuredApiKey = configuredApiKey;
     }
 
@@ -35,7 +38,10 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
 
         String requestApiKey = request.getHeader(API_KEY_HEADER);
 
-        if (requestApiKey != null && requestApiKey.equals(configuredApiKey)) {
+        if (requestApiKey != null && MessageDigest.isEqual(
+                requestApiKey.getBytes(StandardCharsets.UTF_8),
+                configuredApiKey.getBytes(StandardCharsets.UTF_8))) {
+
             UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
                     "service-account",
                     null,

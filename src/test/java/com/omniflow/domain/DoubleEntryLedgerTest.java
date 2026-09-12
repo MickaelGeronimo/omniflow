@@ -94,4 +94,19 @@ class DoubleEntryLedgerTest {
                 .isInstanceOf(InsufficientFundsException.class)
                 .hasMessageContaining("has insufficient funds");
     }
+
+    @Test
+    @DisplayName("Should throw CurrencyMismatchException when leg currency does not match account currency")
+    void shouldRejectMismatchedLegCurrency() {
+        AccountId accId = AccountId.of("OMNI", "0001", "USD-ACC");
+        LedgerAccount assetAccount = new LedgerAccount(
+                accId, "USD Account", AccountType.ASSET, "USD", Money.usd("100.00"), false, 0L
+        );
+
+        PostingLeg eurLeg = PostingLeg.debit(accId, Money.of("50.00", "EUR"), "EUR posting to USD account");
+
+        assertThatThrownBy(() -> assetAccount.applyLeg(eurLeg))
+                .isInstanceOf(com.omniflow.domain.exception.CurrencyMismatchException.class)
+                .hasMessageContaining("does not match ledger account");
+    }
 }

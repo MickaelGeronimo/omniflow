@@ -1,0 +1,35 @@
+# ====================================================================
+# OmniFlow Local Profile: LocalStack & Docker Compose Defaults
+# ====================================================================
+spring:
+  config:
+    activate:
+      on-profile: local
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/omniflow_db
+    username: omniflow_user
+    password: omniflow_password
+
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/omniflow_audit
+
+  cloud:
+    aws:
+      region:
+        static: us-east-1
+      credentials:
+        access-key: test
+        secret-key: test
+      sqs:
+        endpoint: http://localhost:4566
+      sns:
+        endpoint: http://localhost:4566
+      s3:
+        endpoint: http://localhost:4566
+
+omniflow:
+  security:
+    jwt-secret: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+    api-key: omniflow-master-key

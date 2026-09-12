@@ -23,6 +23,22 @@ public class AutonomousAuditAgentService implements AuditTriageUseCase {
     private final DlqPayloadInspectionTool dlqTool;
     private final FinancialPolicyGuardrails guardrails;
     private final AuditEventStorePort auditStore;
+    private final IncidentReasoningEngine reasoningEngine;
+
+    public AutonomousAuditAgentService(
+            LedgerInspectionTool ledgerTool,
+            MongoAuditInspectionTool mongoAuditTool,
+            DlqPayloadInspectionTool dlqTool,
+            FinancialPolicyGuardrails guardrails,
+            AuditEventStorePort auditStore,
+            IncidentReasoningEngine reasoningEngine) {
+        this.ledgerTool = ledgerTool;
+        this.mongoAuditTool = mongoAuditTool;
+        this.dlqTool = dlqTool;
+        this.guardrails = guardrails;
+        this.auditStore = auditStore;
+        this.reasoningEngine = (reasoningEngine != null) ? reasoningEngine : new DeterministicIncidentReasoningEngine();
+    }
 
     public AutonomousAuditAgentService(
             LedgerInspectionTool ledgerTool,
@@ -30,11 +46,7 @@ public class AutonomousAuditAgentService implements AuditTriageUseCase {
             DlqPayloadInspectionTool dlqTool,
             FinancialPolicyGuardrails guardrails,
             AuditEventStorePort auditStore) {
-        this.ledgerTool = ledgerTool;
-        this.mongoAuditTool = mongoAuditTool;
-        this.dlqTool = dlqTool;
-        this.guardrails = guardrails;
-        this.auditStore = auditStore;
+        this(ledgerTool, mongoAuditTool, dlqTool, guardrails, auditStore, new DeterministicIncidentReasoningEngine());
     }
 
     @Override
@@ -70,27 +82,22 @@ public class AutonomousAuditAgentService implements AuditTriageUseCase {
             }
         }
 
-        // Step 4: Autonomous reasoning & root-cause determination
-        String suspectedCause = (String) dlqInspection.getOrDefault("suspectedCause", "UNKNOWN_CAUSE");
-        String rootCauseAnalysis;
-        String recommendedAction;
-        double confidenceScore;
+        // Step 4: Autonomous reasoning via configured ReasoningEngine strategy
+        IncidentReasoningEngine.ReasoningContext reasoningCtx = new IncidentReasoningEngine.ReasoningContext(
+                incidentId,
+                request.transactionId(),
+                request.triggerType(),
+                dlqInspection,
+                auditTrail
+        );
+        IncidentReasoningEngine.ReasoningResult reasoningResult = reasoningEngine.reason(reasoningCtx);
+        evidence.put("reasoningEngine", reasoningResult.engineModel());
 
-        if ("TRANSIENT_INSUFFICIENT_FUNDS_DURING_SETTLEMENT".equals(suspectedCause)) {
-            rootCauseAnalysis = "Customer account balance depleted concurrently between funds hold and final settlement window.";
-            recommendedAction = "MANUAL_REVERSAL_REQUIRED";
-            confidenceScore = 0.94;
-        } else if ("CORRUPTED_PAYLOAD_MISSING_CREDITOR".equals(suspectedCause)) {
-            rootCauseAnalysis = "Message schema corruption: creditor account field missing from SQS payload.";
-            recommendedAction = "QUARANTINE_POISON_PILL";
-            confidenceScore = 0.98;
-        } else {
-            rootCauseAnalysis = "Transient network error or timeout during async SQS delivery.";
-            recommendedAction = "REPLAY_TRANSACTION_FROM_OUTBOX";
-            confidenceScore = 0.88;
-        }
+        String rootCauseAnalysis = reasoningResult.rootCauseAnalysis();
+        String recommendedAction = reasoningResult.recommendedAction();
+        double confidenceScore = reasoningResult.confidenceScore();
 
-        // Step 5: Enforce Safety Guardrails & Human-in-the-Loop policy
+        // Step 5: Enforce Safety Guardrails & Human-in-the-Loop policy (STRICTLY EXTERNAL TO AI ENGINE)
         boolean requiresHuman = guardrails.requiresHumanApproval(txAmount, confidenceScore, recommendedAction);
 
         TriageVerdict verdict = new TriageVerdict(
@@ -113,8 +120,8 @@ public class AutonomousAuditAgentService implements AuditTriageUseCase {
                 evidence
         );
 
-        log.info("[AI-AGENT] Completed triage [{}]. Requires Human: {}, Confidence: {}, Action: {}",
-                incidentId, requiresHuman, confidenceScore, recommendedAction);
+        log.info("[AI-AGENT] Completed triage [{}]. Requires Human: {}, Confidence: {}, Action: {}, Engine: {}",
+                incidentId, requiresHuman, confidenceScore, recommendedAction, reasoningResult.engineModel());
 
         return verdict;
     }

@@ -139,6 +139,12 @@ public class PostgresLedgerRepositoryAdapter implements LedgerRepositoryPort {
         return journalRepo.findAll(pageable).stream().map(this::toDomainJournal).toList();
     }
 
+    @Override
+    public List<JournalEntry> findJournalEntriesKeyset(String lastEntryId, java.time.Instant cutoff, int limit) {
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(0, limit);
+        return journalRepo.findByKeyset(lastEntryId, cutoff, pageable).stream().map(this::toDomainJournal).toList();
+    }
+
     private JournalEntry toDomainJournal(JournalEntryJpaEntity entity) {
         List<PostingLeg> domainLegs = entity.getLegs().stream().map(leg -> new PostingLeg(
                 AccountId.parse(leg.getAccountId()),

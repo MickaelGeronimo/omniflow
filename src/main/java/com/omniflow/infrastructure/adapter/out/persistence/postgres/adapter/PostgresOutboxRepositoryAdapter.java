@@ -14,6 +14,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Repository
 public class PostgresOutboxRepositoryAdapter implements OutboxRepositoryPort {
@@ -31,11 +32,14 @@ public class PostgresOutboxRepositoryAdapter implements OutboxRepositoryPort {
     public void saveEvent(String aggregateType, String aggregateId, String eventType, Map<String, Object> payload) {
         try {
             String json = objectMapper.writeValueAsString(payload);
+            String correlationId = (String) payload.getOrDefault("correlationId", payload.getOrDefault("referenceId", aggregateId));
+
             OutboxEventJpaEntity entity = new OutboxEventJpaEntity(
                     UUID.randomUUID().toString(),
                     aggregateType,
                     aggregateId,
                     eventType,
+                    correlationId,
                     json,
                     "PENDING",
                     0,
@@ -55,7 +59,10 @@ public class PostgresOutboxRepositoryAdapter implements OutboxRepositoryPort {
     @Transactional
     public List<OutboxRecord> claimPendingEvents(String workerId, int limit) {
         Instant now = Instant.now();
-        List<OutboxEventJpaEntity> claimable = outboxRepo.findClaimableEventsWithSkipLocked(3, now, PageRequest.of(0, limit));
+        Instant leaseCutoff = now.minus(5, ChronoUnit.MINUTES); // 5-minute lease recovery for crashed pods
+        List<OutboxEventJpaEntity> claimable = outboxRepo.findClaimableEventsWithSkipLocked(
+                3, now, leaseCutoff, PageRequest.of(0, limit)
+        );
 
         for (OutboxEventJpaEntity event : claimable) {
             event.setStatus("PROCESSING");
@@ -104,9 +111,12 @@ public class PostgresOutboxRepositoryAdapter implements OutboxRepositoryPort {
                 event.setStatus("DEAD_LETTER");
             } else {
                 event.setStatus("FAILED");
-                // Exponential backoff: 2^retries * 2 seconds
-                long delaySeconds = (long) Math.pow(2, retries) * 2;
-                event.setNextRetryAt(Instant.now().plus(delaySeconds, ChronoUnit.SECONDS));
+                // Exponential backoff with full random jitter: base * 2^retries + jitter (0-1000ms)
+                long baseDelaySec = 2L;
+                long maxDelaySec = 300L;
+                long expDelaySec = Math.min(maxDelaySec, baseDelaySec * (1L << Math.min(retries, 8)));
+                long jitterMillis = ThreadLocalRandom.current().nextLong(0, 1000);
+                event.setNextRetryAt(Instant.now().plusSeconds(expDelaySec).plusMillis(jitterMillis));
             }
             outboxRepo.save(event);
         });

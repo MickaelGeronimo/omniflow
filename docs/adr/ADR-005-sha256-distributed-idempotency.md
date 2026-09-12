@@ -30,5 +30,5 @@ We implemented a **Stateful Distributed Idempotency Engine** with cryptographic 
   * *Cons:* Fails completely in multi-pod Kubernetes deployments where requests are load-balanced across instances.
 
 ## Consequences & Trade-offs
-* **Zero Duplicate Debits:** Guaranteed even under severe network retry storms.
+* **Zero Duplicate Debits:** Designed to prevent duplicate debits under concurrent and repeated client requests.
 * **Tampering Prevention:** Identical keys with modified amounts or accounts are immediately blocked and flagged.

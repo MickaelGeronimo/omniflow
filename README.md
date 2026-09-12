@@ -157,6 +157,20 @@ Eliminates dual-write inconsistencies between the relational database and the AW
   * `/actuator/health`: Public probe for Kubernetes liveness/readiness.
   * `/actuator/prometheus`: Protected for monitoring infrastructure.
 
+### 7. Distributed Systems Resilience Matrix
+
+| Scenario / Hazard | Failure Mode | OmniFlow Defense Mechanism | Verification Test |
+|---|---|---|---|
+| **Dual-Write Hazard** | DB commits but message broker unavailable | **Transactional Outbox Pattern** (`outbox_events` written atomically in same ACID TX; polled via `FOR UPDATE SKIP LOCKED`). | `FinancialOrchestratorService` |
+| **Worker Pod Crash** | Pod evicted while relaying event in `PROCESSING` | **Outbox Lease Recovery**: `locked_at < now - 5m` reclaims stale events automatically. | `PostgresOutboxRepositoryAdapter` |
+| **Downstream Throttling** | SNS/SQS rejects events with 429 / backpressure | **Exponential Backoff with Full Random Jitter**: $\min(300\text{s}, 2 \cdot 2^{\text{retry}}) + \text{jitter}$. | `OutboxRelayScheduledWorker` |
+| **SQS Duplicate Delivery** | At-least-once delivery duplicates settlement message | **Consumer Deduplication Store**: `processed_settlement_events` relational table + domain idempotency no-op. | `SqsConsumerIdempotencyTest` |
+| **Concurrent Debit Race** | Multiple threads attempt simultaneous balance depletion | **JPA `@Version` Optimistic Locking** rejecting concurrent updates without data corruption. | `LedgerOptimisticLockingConcurrencyTest` |
+| **Tampered Request Payload** | Identical idempotency key reused with modified amount | **SHA-256 Fingerprint Validation** returning `409 Conflict / ConflictingPayloadException`. | `FinancialOrchestratorService` |
+| **Multi-Currency Inconsistency** | Leg posted in EUR to USD ledger account | **Strict Currency Validation** throwing explicit domain `CurrencyMismatchException`. | `DoubleEntryLedgerTest` |
+| **Large Batch Memory Spike** | Millions of ledger entries scanned during reconciliation | **Keyset Cursor Pagination** (`WHERE entry_id > :lastId AND timestamp <= :cutoff`) with $O(1)$ memory. | `ReconciliationBatchLauncher` |
+| **Poison Pill Message** | Corrupted message body crashes consumer loop | **SQS Dead-Letter Queue (DLQ)** redrive after 3 attempts + trigger autonomous triage agent. | `AutonomousAuditAgentTest` |
+
 ---
 
 ## 🛠️ Technology Stack
@@ -189,12 +203,20 @@ docker compose up -d
 
 ### 2. Build & Run Tests
 ```bash
-mvn clean test
+# Linux / macOS
+./mvnw clean test
+
+# Windows PowerShell
+.\mvnw.cmd clean test
 ```
 
 ### 3. Launch OmniFlow
 ```bash
-mvn spring-boot:run
+# Linux / macOS
+./mvnw spring-boot:run
+
+# Windows PowerShell
+.\mvnw.cmd spring-boot:run
 ```
 
 ---
