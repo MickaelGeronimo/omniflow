@@ -28,7 +28,7 @@ public class IdempotencyInsertHelper {
                     "IN_FLIGHT",
                     null,
                     Instant.now(),
-                    Instant.now().plus(24, ChronoUnit.HOURS)
+                    Instant.now().plus(2, ChronoUnit.MINUTES)
             );
             repo.saveAndFlush(entity);
             return true;

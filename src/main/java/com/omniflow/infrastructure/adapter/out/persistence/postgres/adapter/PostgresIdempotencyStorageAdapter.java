@@ -68,6 +68,14 @@ public class PostgresIdempotencyStorageAdapter implements IdempotencyStoragePort
                 return new AcquireResult(LockStatus.ALREADY_COMPLETED, cached);
             }
 
+            // Crash Recovery: If previous node crashed while IN_FLIGHT and 2-min lease expired, reclaim the lock
+            if ("IN_FLIGHT".equals(entity.getStatus()) && entity.getExpiresAt() != null && entity.getExpiresAt().isBefore(java.time.Instant.now())) {
+                log.warn("[IDEMP] Reclaiming expired IN_FLIGHT lock for key [{}] after crash timeout", key);
+                entity.setExpiresAt(java.time.Instant.now().plus(2, java.time.temporal.ChronoUnit.MINUTES));
+                repo.saveAndFlush(entity);
+                return new AcquireResult(LockStatus.ACQUIRED, null);
+            }
+
             try {
                 Thread.sleep(50);
             } catch (InterruptedException e) {
@@ -80,12 +88,13 @@ public class PostgresIdempotencyStorageAdapter implements IdempotencyStoragePort
     }
 
     @Override
-    @Transactional
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public void markCompleted(String idempotencyKey, TransactionResult result) {
         repo.findById(idempotencyKey).ifPresent(entity -> {
             try {
                 entity.setStatus("COMPLETED");
                 entity.setResponsePayload(objectMapper.writeValueAsString(result));
+                entity.setExpiresAt(java.time.Instant.now().plus(24, java.time.temporal.ChronoUnit.HOURS));
                 repo.saveAndFlush(entity);
             } catch (Exception e) {
                 log.error("Failed to serialize transaction result for idempotency key [{}]", idempotencyKey, e);
@@ -94,7 +103,7 @@ public class PostgresIdempotencyStorageAdapter implements IdempotencyStoragePort
     }
 
     @Override
-    @Transactional
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public void releaseLock(String idempotencyKey) {
         repo.deleteById(idempotencyKey);
     }

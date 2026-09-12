@@ -49,4 +49,5 @@ public class IdempotencyKeyJpaEntity {
     public void setResponsePayload(String responsePayload) { this.responsePayload = responsePayload; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getExpiresAt() { return expiresAt; }
+    public void setExpiresAt(Instant expiresAt) { this.expiresAt = expiresAt; }
 }
