@@ -8,7 +8,7 @@ As financial ledgers grow into millions of journal entries and outbox events, tw
 1. **Offset Pagination Degradation & Phantom Rows:** Traditional batch reconciliation querying LIMIT 100 OFFSET :offset scales at (N)$ execution cost. Furthermore, concurrent transaction insertions during reconciliation shift offsets dynamically, leading to skipped or double-counted financial records.
 2. **Outbox Worker Abandonment on Pod Eviction:** When a Kubernetes worker pod crashes while processing an outbox batch marked PROCESSING, records remain abandoned indefinitely unless an automatic lease recovery mechanism reclaims them.
 3. **Thundering Herd on Outbox Retries:** If external messaging downstream (AWS SNS/SQS) experiences transient throttling, synchronous fixed-interval retries cause thundering herd surges.
-4. **AI Reasoning Predictability in Regulated Systems:** Unconstrained LLM reasoning in autonomous financial agents introduces non-deterministic hallucination risks.
+4. **AI Reasoning Predictability in Regulated Systems:** Unconstrained LLM reasoning in financial triage workflows introduces non-deterministic hallucination risks.
 
 ## Decision
 1. **Keyset (Cursor) Pagination with Cutoff Snapshots:**

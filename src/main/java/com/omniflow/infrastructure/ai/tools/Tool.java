@@ -6,8 +6,9 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Annotation marking an autonomous agent tool capability.
- * Enables deterministic function registration and LLM execution.
+ * Diagnostic tool annotation marking inspection capabilities for incident triage.
+ * These diagnostic methods are invoked by the IncidentTriageService to collect
+ * forensic facts (payload schema, audit trail, ledger balances) for the reasoning engine.
  */
 @Target({ElementType.METHOD, ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)

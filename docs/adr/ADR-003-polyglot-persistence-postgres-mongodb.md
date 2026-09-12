@@ -18,7 +18,7 @@ We adopted a **Polyglot Persistence** model:
   * `outbox_events`
 * **MongoDB 7.0:** Dedicated to append-only, schemaless audit and AI logs:
   * `audit_events`: Full lifecycle payloads emitted asynchronously by message consumers.
-  * `agent_triage_logs`: Diagnostic reasoning trails, tool invocation metrics, confidence scores, and forensic evidence collected by the Spring AI Autonomous Agent.
+  * `agent_triage_logs`: Diagnostic reasoning trails, tool invocation metrics, confidence scores, and forensic evidence collected during automated incident triage.
 
 ## Alternatives Considered
 * **PostgreSQL JSONB for everything:**

@@ -143,7 +143,7 @@ The current implementation uses a deterministic reasoning engine (`Deterministic
     1. Transaction amount exceeds **$10,000.00**.
     2. Diagnostic confidence score is lower than **0.85**.
     3. Action requires permanent financial write-off or manual ledger adjustment.
-  * Full reasoning chain, evidence, and verdict are persisted immutably in MongoDB.
+  * Decision rationale, forensic evidence, and verdict are persisted immutably in MongoDB.
 
 ### 5. High-Throughput Chunk-Based Spring Batch 5 Reconciliation
 * Scalable `PagedLedgerItemReader` queries PostgreSQL in bounded pages of 100 records, ensuring constant $O(1)$ memory consumption.
@@ -242,7 +242,7 @@ curl -X POST http://localhost:8080/api/v1/transactions \
   }'
 ```
 
-### 2. Autonomous Incident Triage
+### 2. AI-Assisted Incident Triage (Preview)
 **`POST /api/v1/ai/triage`**
 ```bash
 curl -X POST http://localhost:8080/api/v1/ai/triage \

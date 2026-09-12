@@ -6,9 +6,11 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
- * Architectural Preview: LLM-backed Incident Reasoning Engine via Spring AI.
- * Demonstrates how generative models can ingest unstructured forensic evidence
- * while remaining bounded by external FinancialPolicyGuardrails.
+ * Architectural integration point and preview hook for future LLM-backed triage.
+ *
+ * NOTE: Architectural integration point only. No external LLM network invocation
+ * is performed in the current implementation. Serves as an extensible port adapter
+ * prepared for Spring AI ChatModel integration, maintaining zero external runtime dependencies.
  */
 @Component
 @ConditionalOnProperty(name = "omniflow.ai.engine", havingValue = "spring-ai")
@@ -19,20 +21,15 @@ public class SpringAiIncidentReasoningEngine implements IncidentReasoningEngine 
 
     @Override
     public ReasoningResult reason(ReasoningContext context) {
-        log.info("[SPRING-AI-PREVIEW] Ingesting incident [{}] context into LLM reasoning prompt", context.incidentId());
-        try {
-            // Preview architectural hook: in live deployments with OpenAI / Bedrock API keys configured,
-            // this delegates to Spring AI ChatModel. For self-contained testing, uses deterministic fallback.
-            ReasoningResult baseline = fallbackEngine.reason(context);
-            return new ReasoningResult(
-                    "[AI-PREVIEW] " + baseline.rootCauseAnalysis(),
-                    baseline.recommendedAction(),
-                    baseline.confidenceScore(),
-                    "SpringAI-LlmTriage-Preview"
-            );
-        } catch (Exception e) {
-            log.warn("[SPRING-AI-PREVIEW] Fallback to deterministic rules due to LLM error: {}", e.getMessage());
-            return fallbackEngine.reason(context);
-        }
+        log.info("[AI-PREVIEW] Ingesting incident [{}] context into reasoning preview contract", context.incidentId());
+        // Architectural preview hook: executes baseline diagnostic analysis without external network calls.
+        // In a production environment with an active LLM provider configured, this method maps to a Spring AI ChatModel.
+        ReasoningResult baseline = fallbackEngine.reason(context);
+        return new ReasoningResult(
+                "[AI-PREVIEW] " + baseline.rootCauseAnalysis(),
+                baseline.recommendedAction(),
+                baseline.confidenceScore(),
+                "SpringAI-LlmTriage-Preview"
+        );
     }
 }

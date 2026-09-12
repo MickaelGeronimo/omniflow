@@ -118,7 +118,7 @@ public class IncidentTriageService implements AuditTriageUseCase {
                 evidence
         );
 
-        // Step 6: Persist complete reasoning trail and evidence to MongoDB
+        // Step 6: Persist decision rationale, forensic evidence, and verdict to MongoDB
         auditStore.recordAgentDecision(
                 incidentId,
                 request.transactionId(),
