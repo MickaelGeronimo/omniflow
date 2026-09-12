@@ -4,16 +4,16 @@
 **Accepted**
 
 ## Context
-In payment and settlement pipelines, network timeouts cause clients or automated retriers to resend requests. Without idempotency controls:
-1. Duplicate requests cause double-charging or repeated ledger postings.
-2. Reusing an idempotency key with modified amounts or accounts must be detected and rejected.
+Network timeouts between clients and the API cause retries. Without idempotency handling:
+1. Retried requests would create duplicate charges or double-postings in the ledger.
+2. A client could reuse an existing idempotency key with different amounts or accounts, which must be rejected.
 
 ## Decision
-We implemented a distributed idempotency engine using PostgreSQL and SHA-256 request fingerprinting:
+We store idempotency records in PostgreSQL and validate request bodies with a SHA-256 fingerprint:
 1. **Request Fingerprint:**
    A SHA-256 hash is computed across payment fields:
    $$\text{Hash} = \text{SHA-256}(\text{referenceId} \parallel \text{debtor} \parallel \text{creditor} \parallel \text{amount} \parallel \text{currency} \parallel \text{description})$$
-2. **Lifecycle:**
+2. **Key Lifecycle:**
    * **`tryAcquire(idempotencyKey, fingerprint)`:**
      * If key is new: Inserts record in state `IN_FLIGHT` with an initial 2-minute lease.
      * If key exists and is `COMPLETED`: Returns cached `TransactionResult` without re-executing.
@@ -25,10 +25,10 @@ We implemented a distributed idempotency engine using PostgreSQL and SHA-256 req
 
 ## Alternatives Considered
 * **Redis Distributed Lock (Redlock):**
-  * *Cons:* Storing idempotency keys in PostgreSQL guarantees durability alongside ledger records without managing a separate Redis cluster.
+  * *Cons:* If Redis restarts or drops unpersisted keys, duplicate payments could go through. Using PostgreSQL keeps the idempotency key in the same durable database as the ledger.
 * **In-Memory Cache (Caffeine/Guava):**
   * *Cons:* Does not work across multiple application instances behind a load balancer.
 
 ## Consequences & Trade-offs
-* **Duplicate Prevention:** Prevents double-charging on network retries and concurrent client submissions.
+* **No Duplicate Charges:** Retries return the original cached response instead of charging again.
 * **Conflict Detection:** Reusing a key with different parameters returns HTTP 409 Conflict.

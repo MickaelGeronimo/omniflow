@@ -21,15 +21,15 @@ We implemented a **Double-Entry General Ledger** domain model:
    * **ASSET / EXPENSE:** Debits increase balance; Credits decrease balance.
    * **LIABILITY / EQUITY / REVENUE:** Credits increase balance; Debits decrease balance.
 4. Monetary values are modeled as an immutable `Money` value object with 4 decimal places of precision (`RoundingMode.HALF_EVEN`) to avoid floating-point errors.
-5. Optimistic concurrency control (`@Version`) on `ledger_accounts` prevents lost updates under concurrent transactions.
+5. Account rows use JPA `@Version` optimistic locking so concurrent writes to the same account fail fast rather than overwrite each other.
 
 ## Alternatives Considered
 * **Single-Entry Ledger (Balance mutation audit log):**
   * *Cons:* Does not enforce conservation of funds across accounts; hard to verify consistency mathematically.
 * **Full Event Sourcing:**
   * *Pros:* Complete event history.
-  * *Cons:* Rebuilding account balances across large posting volumes requires a snapshotting pipeline. We combine an immutable journal with materialized account balance records protected by `@Version`.
+  * *Cons:* Rebuilding account balances from scratch requires snapshotting infrastructure. Storing materialized account balances backed by an immutable journal gives us auditability with simple read queries.
 
 ## Consequences & Trade-offs
-* **Balance Validation:** If $\sum \text{Debits} \neq \sum \text{Credits}$, a `LedgerImbalanceException` is thrown before any record is saved.
-* **Auditability:** Complete chronological record of every split across buyer, merchant, platform revenue, and escrow accounts.
+* **Balance Validation:** If debits and credits do not balance, the domain throws `LedgerImbalanceException` before saving to the database.
+* **Audit Trail:** Every payment split preserves the complete breakdown across buyer, merchant, platform revenue, and escrow accounts.

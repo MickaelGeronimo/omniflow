@@ -10,9 +10,9 @@ In OmniFlow, payment state transitions (funds reservations, settlements) trigger
 3. Two-Phase Commit (XA) is slow, fragile across cloud brokers, and not supported by AWS SNS/SQS.
 
 ## Decision
-We implemented the **Transactional Outbox Pattern** using an `outbox_events` table in PostgreSQL. The business entity, ledger journal entry, and outbox event record are committed in the same local database transaction.
+We use the **Transactional Outbox Pattern** with an `outbox_events` table in PostgreSQL. The payment record, ledger journal entry, and outbox event are committed in the same database transaction so they succeed or fail together.
 
-To poll and publish events across multiple instances without lock contention, workers query:
+Workers poll for unpublished events using `FOR UPDATE SKIP LOCKED` so multiple pods can read batches concurrently without blocking each other:
 ```sql
 SELECT * FROM outbox_events
 WHERE status IN ('PENDING', 'FAILED') AND retry_count < 3
@@ -29,6 +29,6 @@ LIMIT 50;
   * *Cons:* Messages are lost if the application crashes between the database commit and the broker call.
 
 ## Consequences & Trade-offs
-* **At-Least-Once Delivery:** Eliminates dual-write inconsistencies between database state and event publishing. Downstream consumers require idempotency (handled via SHA-256 fingerprinting).
-* **Concurrent Relays:** `FOR UPDATE SKIP LOCKED` allows multiple worker instances to process batches concurrently without blocking each other or republishing the same event.
-* **Retries & DLQ:** Events failing after 3 attempts transition to `DEAD_LETTER` for incident triage.
+* **At-Least-Once Delivery:** Eliminates dual-write bugs. Downstream consumers need idempotency to handle duplicate events from retries.
+* **Multiple Workers:** `FOR UPDATE SKIP LOCKED` lets several pods poll the outbox table in parallel without lock contention or duplicate reads.
+* **Retries & Dead Letters:** Events that fail 3 attempts move to `DEAD_LETTER` for incident triage.

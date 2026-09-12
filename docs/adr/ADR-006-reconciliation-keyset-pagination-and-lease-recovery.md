@@ -4,7 +4,7 @@
 **Accepted**
 
 ## Context
-As ledger and outbox tables grow, several operational challenges appear:
+As these tables grow, we ran into a few operational problems:
 1. **Offset Pagination Drift:** Offset-based queries (`OFFSET :n`) become slower on deep pages and can duplicate or skip records if new transactions are inserted during a batch reconciliation run.
 2. **Abandoned Outbox Events:** If a worker crashes while processing a batch marked `PROCESSING`, those records remain stuck unless reclaimed.
 3. **Thundering Herd on Retries:** Fixed retry intervals against throttled downstream brokers cause retry spikes.
@@ -13,7 +13,7 @@ As ledger and outbox tables grow, several operational challenges appear:
 ## Decision
 1. **Keyset Pagination with Temporal Cutoff:**
    * Uses ordered cursor scans: `WHERE (:lastEntryId IS NULL OR j.entryId > :lastEntryId) AND j.timestamp <= :cutoff ORDER BY j.entryId ASC LIMIT 100`.
-   * The cutoff timestamp freezes the reconciliation window so newly inserted transactions don't affect the running batch.
+   * The cutoff keeps the reconciliation window stable. Transactions inserted after the cutoff are processed by a later run.
 2. **Outbox Lease Recovery:**
    * Events in `PROCESSING` whose `locked_at` exceeds 5 minutes are reclaimed alongside `PENDING` events via `findClaimableEventsWithSkipLocked`.
 3. **Exponential Backoff with Jitter:**
@@ -26,4 +26,4 @@ As ledger and outbox tables grow, several operational challenges appear:
 ## Consequences & Trade-offs
 * **Bounded Memory:** Reconciliation processes one page at a time instead of loading large result sets into memory.
 * **Lease Recovery:** Stale `PROCESSING` events from crashed workers are automatically retried.
-* **Safety Rules:** Policy guardrails and human review thresholds are evaluated independently of the reasoning engine implementation.
+* **Rule Isolation:** Guardrails are evaluated outside the reasoning engine, so changing the reasoning implementation does not change the financial rules.

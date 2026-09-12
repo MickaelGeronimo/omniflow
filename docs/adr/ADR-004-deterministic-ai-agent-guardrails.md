@@ -28,5 +28,6 @@ We separated incident diagnosis from action execution using policy guardrails:
   * *Rejected:* Less flexible for parsing unstructured error messages, stack traces, and variable payload schemas from cloud DLQs.
 
 ## Consequences & Trade-offs
-* **Bounded Automation:** Low-risk, high-confidence events (such as known retryable timeouts) can be classified automatically, reducing on-call triage effort.
-* **Auditability & Safety:** High-value or irreversible actions always require operator review and remain logged in MongoDB.
+* **Safe Automation:** Low-risk, high-confidence events (such as known retryable timeouts) can be classified automatically without waking up on-call engineers.
+* **Separation of Policy:** Guardrails are evaluated outside the reasoning engine, so changing the reasoning implementation does not change the financial rules.
+* **Audit Trail:** High-value or irreversible actions always require operator approval and remain logged in MongoDB.
