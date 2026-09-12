@@ -40,7 +40,7 @@ public class ReconciliationBatchLauncher implements ReconcileLedgerUseCase {
             LedgerRepositoryPort ledgerRepository,
             S3StoragePort s3Storage,
             ObjectMapper objectMapper,
-            @Value("") String s3BucketName) {
+            @Value("${omniflow.aws.s3-bucket-name:omniflow-reconciliation-reports}") String s3BucketName) {
         this.jobLauncher = jobLauncher;
         this.reconciliationJob = reconciliationJob;
         this.ledgerRepository = ledgerRepository;
