@@ -15,7 +15,7 @@ We implemented the **Transactional Outbox Pattern** using an `outbox_events` tab
 To poll and relay events to AWS SNS with high throughput across multiple horizontally-scaled instances, we use:
 ```sql
 SELECT * FROM outbox_events
-WHERE status IN ('PENDING', 'FAILED') AND retry_count < 5
+WHERE status IN ('PENDING', 'FAILED') AND retry_count < 3
 ORDER BY created_at ASC
 FOR UPDATE SKIP LOCKED
 LIMIT 50;
@@ -29,6 +29,6 @@ LIMIT 50;
   * *Cons:* Inability to guarantee message publishing if the orchestrator process crashes before emitting the event.
 
 ## Consequences & Trade-offs
-* **Guaranteed At-Least-Once Delivery:** Downstream subscribers must implement idempotency (which OmniFlow enforces via SHA-256 fingerprinting).
+* **Guaranteed At-Least-Once Delivery:** Eliminates dual-write inconsistencies between local database state and event publishing, providing at-least-once delivery semantics. Downstream consumers require idempotency (which OmniFlow enforces via SHA-256 fingerprinting).
 * **Zero Lock Contention:** `FOR UPDATE SKIP LOCKED` allows multiple relay worker pods to run concurrently without blocking each other or republishing the same event.
-* **Exponential Backoff & Dead-Lettering:** Events failing after 5 attempts transition to `DEAD_LETTER` for autonomous AI triage.
+* **Exponential Backoff & Dead-Lettering:** Events failing after 3 attempts transition to `DEAD_LETTER` for autonomous AI triage.

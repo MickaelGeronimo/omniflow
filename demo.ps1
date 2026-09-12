@@ -45,8 +45,9 @@ $txBody = @{
 } | ConvertTo-Json
 
 Write-Host " -> Request Payload: Reference: ORD-2026-X889 | Amount: `$1,250.00 USD" -ForegroundColor Gray
+$headers = @{"Idempotency-Key"=$txIdempKey; "X-API-KEY"="omniflow-master-key"}
 try {
-    $resp1 = Invoke-RestMethod -Uri "$BaseUrl/api/v1/transactions" -Method Post -Body $txBody -ContentType "application/json" -Headers @{"Idempotency-Key"=$txIdempKey}
+    $resp1 = Invoke-RestMethod -Uri "$BaseUrl/api/v1/transactions" -Method Post -Body $txBody -ContentType "application/json" -Headers $headers
     Write-Host " -> Success! TxId: $($resp1.transactionId) | Status: $($resp1.status)" -ForegroundColor Green
     Write-Host " -> Double-Entry Verified: Gross Debit (`$1250) = Net Merchant (`$1162.50) + Fee (`$62.50) + Reserve (`$25.00)" -ForegroundColor Green
 } catch {
@@ -58,7 +59,7 @@ Write-Host ""
 # 3. Test Distributed Idempotency (Duplicate Prevention)
 Write-Host "[3/5] Testing Distributed Idempotency with exact duplicate request..." -ForegroundColor Yellow
 try {
-    $resp2 = Invoke-RestMethod -Uri "$BaseUrl/api/v1/transactions" -Method Post -Body $txBody -ContentType "application/json" -Headers @{"Idempotency-Key"=$txIdempKey}
+    $resp2 = Invoke-RestMethod -Uri "$BaseUrl/api/v1/transactions" -Method Post -Body $txBody -ContentType "application/json" -Headers $headers
     Write-Host " -> Idempotency Active! Replayed same request -> Returned CACHED result without creating duplicate ledger legs." -ForegroundColor Green
 } catch {
     Write-Host " -> Idempotency Active! SHA-256 fingerprint matched -> Cached transaction returned without duplicate debits." -ForegroundColor DarkGreen
@@ -77,7 +78,7 @@ $aiBody = @{
 
 Write-Host " -> Injecting DLQ incident: High-value transaction (`$45,000.00) with corrupted creditor schema" -ForegroundColor Gray
 try {
-    $verdict = Invoke-RestMethod -Uri "$BaseUrl/api/v1/ai/triage" -Method Post -Body $aiBody -ContentType "application/json"
+    $verdict = Invoke-RestMethod -Uri "$BaseUrl/api/v1/ai/triage" -Method Post -Body $aiBody -ContentType "application/json" -Headers @{"X-API-KEY"="omniflow-master-key"}
     Write-Host " -> [AI AGENT VERDICT] Incident: $($verdict.incidentId)" -ForegroundColor Cyan
     Write-Host " -> Root Cause: $($verdict.rootCauseAnalysis)" -ForegroundColor White
     Write-Host " -> Recommended Action: $($verdict.recommendedAction) (Confidence: $([Math]::Round($verdict.confidenceScore * 100))%)" -ForegroundColor White
@@ -97,7 +98,7 @@ Write-Host ""
 Write-Host "[5/5] Launching Spring Batch 5 Nightly Financial Reconciliation Job..." -ForegroundColor Yellow
 try {
     $today = (Get-Date).ToString("yyyy-MM-dd")
-    $recon = Invoke-RestMethod -Uri "$BaseUrl/api/v1/reconciliation/run?date=$today" -Method Post
+    $recon = Invoke-RestMethod -Uri "$BaseUrl/api/v1/reconciliation/run?date=$today" -Method Post -Headers @{"X-API-KEY"="omniflow-master-key"}
     Write-Host " -> Batch Job Completed! JobId: $($recon.jobId)" -ForegroundColor Green
     Write-Host " -> Audited: $($recon.totalTransactionsAudited) | Matched: $($recon.matchedCount) | Discrepancies: $($recon.discrepancyCount)" -ForegroundColor White
     Write-Host " -> AWS S3 Audit Report: $($recon.reportS3Url)" -ForegroundColor Cyan

@@ -15,11 +15,12 @@ We implemented a **Stateful Distributed Idempotency Engine** with cryptographic 
    $$\text{Hash} = \text{SHA-256}(\text{referenceId} \parallel \text{debtor} \parallel \text{creditor} \parallel \text{amount} \parallel \text{currency} \parallel \text{description})$$
 2. **Three-Phase State Machine:**
    * **`tryAcquire(idempotencyKey, fingerprint)`:**
-     * If key is new: Inserts record in state `IN_FLIGHT` with a 2-minute lease.
+     * If key is new: Inserts record in state `IN_FLIGHT` with an initial 2-minute lease.
      * If key exists and is `COMPLETED`: Returns cached `TransactionResult` without executing business logic.
      * If key exists with a *different* fingerprint: Throws `ConflictingPayloadException` (HTTP 409 Conflict).
-     * If key exists and is currently `IN_FLIGHT`: Rejects concurrent execution to prevent race conditions.
-   * **`markCompleted(idempotencyKey, result)`:** Caches the final JSON result and transitions state to `COMPLETED`.
+     * If key exists and is `IN_FLIGHT` with an expired lease (> 2 min): Reclaims the lock to recover from previous node crashes.
+     * If key exists and is currently active `IN_FLIGHT`: Rejects concurrent execution with lock contention.
+   * **`markCompleted(idempotencyKey, result)`:** Caches the final JSON result, transitions state to `COMPLETED`, and extends retention to 24 hours (`expires_at = now() + 24h`).
    * **`releaseLock(idempotencyKey)`:** Releases the lock if business logic threw an unexpected transient exception, allowing safe client retries.
 
 ## Alternatives Considered
