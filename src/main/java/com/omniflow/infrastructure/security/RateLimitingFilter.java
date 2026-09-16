@@ -43,6 +43,9 @@ public class RateLimitingFilter extends OncePerRequestFilter {
         }
 
         String clientKey = request.getRemoteAddr();
+        if (buckets.size() > 5000) {
+            buckets.clear();
+        }
         Bucket bucket = buckets.computeIfAbsent(clientKey, k -> createBucket());
 
         if (bucket.tryConsume(1)) {

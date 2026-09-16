@@ -62,6 +62,20 @@ public class SecurityConfig {
 
                         .anyRequest().authenticated()
                 )
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            response.setStatus(jakarta.servlet.http.HttpServletResponse.SC_UNAUTHORIZED);
+                            response.setContentType("application/json");
+                            response.setCharacterEncoding("UTF-8");
+                            response.getWriter().write("{\"type\":\"https://api.omniflow.com/errors/unauthorized\",\"title\":\"Unauthorized\",\"status\":401,\"detail\":\"Authentication required: missing or invalid token/key.\"}");
+                        })
+                        .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            response.setStatus(jakarta.servlet.http.HttpServletResponse.SC_FORBIDDEN);
+                            response.setContentType("application/json");
+                            response.setCharacterEncoding("UTF-8");
+                            response.getWriter().write("{\"type\":\"https://api.omniflow.com/errors/forbidden\",\"title\":\"Forbidden\",\"status\":403,\"detail\":\"Access denied: insufficient role or permissions.\"}");
+                        })
+                )
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> {}))
                 .addFilterBefore(correlationIdFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterAfter(rateLimitingFilter, CorrelationIdFilter.class)

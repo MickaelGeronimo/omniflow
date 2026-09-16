@@ -28,8 +28,8 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
 
     private final String configuredApiKey;
 
-    public ApiKeyAuthenticationFilter(@Value("") String configuredApiKey) {
-        this.configuredApiKey = configuredApiKey;
+    public ApiKeyAuthenticationFilter(@Value("${omniflow.security.api-key:omniflow-master-key}") String configuredApiKey) {
+        this.configuredApiKey = configuredApiKey != null ? configuredApiKey.trim() : "";
     }
 
     @Override
@@ -38,8 +38,8 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
 
         String requestApiKey = request.getHeader(API_KEY_HEADER);
 
-        if (requestApiKey != null && MessageDigest.isEqual(
-                requestApiKey.getBytes(StandardCharsets.UTF_8),
+        if (requestApiKey != null && !requestApiKey.isBlank() && !configuredApiKey.isBlank() && MessageDigest.isEqual(
+                requestApiKey.trim().getBytes(StandardCharsets.UTF_8),
                 configuredApiKey.getBytes(StandardCharsets.UTF_8))) {
 
             UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(

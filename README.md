@@ -159,6 +159,27 @@ Para garantir que nenhum administrador mal-intencionado altere um saldo direto n
 
 ---
 
+## Documentação Técnica & Decisões de Arquitetura
+
+O OmniFlow conta com documentação aprofundada de arquitetura de software e governança técnica:
+
+- 📐 **[Diagramas de Arquitetura (C4 Model & Sequência)](docs/ARCHITECTURE_DIAGRAMS.md):**
+  - **C4 Nível 1 (Contexto):** Relação entre clientes de marketplace, OmniFlow Core, AWS SNS/SQS, S3 e bancos de dados.
+  - **C4 Nível 2 (Contêineres):** Web API, Outbox Relay Worker, Consumidor SQS e Engine de Reconciliação em Lote.
+  - **C4 Nível 3 (Componentes):** Arquitetura Hexagonal desacoplada entre Inbound/Outbound Adapters e Domínio Contábil.
+  - **Diagrama de Sequência:** Fluxo síncrono e transacional de split contábil de 4 pernas.
+  - **Diagrama de Entrega Assíncrona:** Ciclo de vida do Transactional Outbox até fan-out AWS SNS e desduplicação no SQS.
+
+- 📜 **[Architecture Decision Records (ADRs)](docs/adr/README.md):**
+  - **[ADR-001](docs/adr/ADR-001-transactional-outbox-skip-locked.md):** Eliminação de escrita dupla com Outbox Pattern e `FOR UPDATE SKIP LOCKED`.
+  - **[ADR-002](docs/adr/ADR-002-double-entry-general-ledger.md):** Livro-razão contábil de dupla entrada com garantia de invariante zero-sum.
+  - **[ADR-003](docs/adr/ADR-003-polyglot-persistence-postgres-mongodb.md):** Persistência poliglota isolando ACID (PostgreSQL) de logs periciais imutáveis (MongoDB).
+  - **[ADR-004](docs/adr/ADR-004-deterministic-ai-agent-guardrails.md):** Triagem determinística de incidentes em DLQ e esteira de salvaguardas operacionais.
+  - **[ADR-005](docs/adr/ADR-005-sha256-distributed-idempotency.md):** Idempotência com hash SHA-256 e prevenção ao *Phantom Success Bug* via escopo `REQUIRED`.
+  - **[ADR-006](docs/adr/ADR-006-reconciliation-keyset-pagination-and-lease-recovery.md):** Reconciliação em lote $O(1)$ por cursor keyset e recuperação de leases de outbox.
+
+---
+
 ## Como Rodar Localmente
 
 ### 1. Subir a Infraestrutura (PostgreSQL, MongoDB e LocalStack AWS)
@@ -174,6 +195,13 @@ docker compose up -d
 # Linux / macOS
 ./mvnw clean test
 ```
+
+A suíte conta com **34 testes automatizados** cobrindo:
+- **Domínio Contábil Puro:** Regra de ouro da partida dobrada ($\sum D = \sum C$), validação de precisão decimal estrita (`Money`) e cálculos de take-rate de marketplace.
+- **Idempotência Distribuída:** Bloqueio atômico de chaves duplicadas com hash SHA-256 no escopo transacional `REQUIRED`.
+- **Worker de Outbox:** Despacho concorrente `SKIP LOCKED`, retentativa com backoff exponencial + jitter e circuit breaker contra indisponibilidade de broker.
+- **Tratamento Global de Exceções:** Contrato RFC 7807 (`ProblemDetail`) garantindo zero vazamento de 500 para erros de cliente (400, 405, 409, 422).
+- **Filtros de Segurança:** Autenticação segura por chave de API com tempo constante (`MessageDigest.isEqual`) e rate limiting em memória com descarte anti-OOM.
 
 ### 3. Subir a Aplicação
 ```bash

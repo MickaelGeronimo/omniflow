@@ -4,7 +4,7 @@
 **Accepted**
 
 ## Context
-An LLM must not be responsible for financial authorization or balance changes. It can help classify incidents and summarize evidence, but financial actions remain subject to deterministic rules and human approval.
+Heuristic and AI triage models must not be responsible for financial authorization or balance changes. They can assist in classifying operational incidents and extracting forensic evidence, but all financial mutations remain strictly governed by deterministic ledger rules and human approval (HITL).
 
 When handling Dead Letter Queue (DLQ) messages or ledger discrepancies, automated operations need clear boundaries to prevent incorrect reversals or write-offs.
 
