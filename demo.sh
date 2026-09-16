@@ -8,7 +8,7 @@ BASE_URL="${1:-http://localhost:8080}"
 
 echo -e "\033[1;36m=================================================================\033[0m"
 echo -e "\033[1;33m   OMNIFLOW: CLOUD-NATIVE FINANCIAL ORCHESTRATION PLATFORM       \033[0m"
-echo -e "\033[1;36m   Live Architecture & AI Incident Triage Demonstration          \033[0m"
+echo -e "\033[1;36m   Live Architecture & Forensic Incident Triage Demonstration    \033[0m"
 echo -e "\033[1;36m=================================================================\033[0m"
 echo ""
 
@@ -31,9 +31,9 @@ echo -e "\033[1;33m[3/5] Testing Distributed Idempotency with exact duplicate re
 echo -e "\033[1;32m -> Idempotency Active! SHA-256 fingerprint matched -> Cached transaction returned without duplicate debits.\033[0m"
 echo ""
 
-echo -e "\033[1;33m[4/5] Simulating DLQ Poison-Pill Ingestion & AI Incident Triage...\033[0m"
+echo -e "\033[1;33m[4/5] Simulating DLQ Poison-Pill Ingestion & Forensic Incident Triage...\033[0m"
 echo -e "\033[0;37m -> Injecting DLQ incident: High-value transaction (\$45,000.00) with corrupted creditor schema\033[0m"
-echo -e "\033[1;36m -> [INCIDENT TRIAGE VERDICT] Incident: INCIDENT-8f12cb4a\033[0m"
+echo -e "\033[1;36m -> [FORENSIC TRIAGE VERDICT] Incident: INCIDENT-8f12cb4a\033[0m"
 echo -e "\033[1;37m -> Root Cause: Message schema corruption: creditor account field missing from SQS payload.\033[0m"
 echo -e "\033[1;37m -> Recommended Action: QUARANTINE_POISON_PILL (Confidence: 98%)\033[0m"
 echo -e "\033[1;33m -> Requires Human Sign-off (HITL): True (Policy: Transaction \$45,000 > \$10,000 threshold)\033[0m"

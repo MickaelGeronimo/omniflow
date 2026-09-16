@@ -122,6 +122,15 @@ Mensagens corrompidas ou malformadas que chegam no SQS não ficam em loop infini
 - Após 3 tentativas falhas com backoff, a mensagem é isolada na **Dead-Letter Queue (DLQ)**.
 - Os metadados de diagnóstico, stack trace e payload original são registrados no MongoDB para investigação forense.
 
+### 5. Idempotência Distribuída & O Bug do Sucesso Fantasma (The Phantom Success Bug)
+Um dos erros mais perigosos em sistemas distribuídos bancários é gerenciar o registro de idempotência em uma transação aninhada independente (`@Transactional(propagation = Propagation.REQUIRES_NEW)`):
+- **O Risco (Cenário 1):** Se o registro de idempotência commitar prematuramente em sua própria conexão e a transação principal sofrer um conflito de concorrência (`OptimisticLockException`), os débitos no saldo sofrem rollback, mas o registro `COMPLETED` permanece salvo. Quando o cliente retenta a chamada, o interceptor encontra a chave, responde `HTTP 200 OK`, mas o dinheiro **nunca foi transferido**.
+- **A Solução Atômica (Cenário 2):** Amarração estrita de escopo transacional (`REQUIRED`). Toda mutação de saldo, evento outbox e registro de idempotência comitam ou sofrem rollback juntos. Em caso de conflito, o cliente recebe `HTTP 409 Conflict` e pode retentar com garantia de zero divergência contábil.
+
+<p align="center">
+  <img src="docs/diagrams/phantom_success_diagram.png" alt="Distributed Idempotency & The Phantom Success Bug" width="850"/>
+</p>
+
 ---
 
 ## Melhorias de Arquitetura para Alta Escala

@@ -4,7 +4,7 @@
     Demonstrates:
     1. Multi-Leg Marketplace Split Settlement (Double-Entry Zero-Sum)
     2. SHA-256 Distributed Idempotency (Duplicate Prevention & Tamper Detection)
-    3. AI Incident Triage Engine & Financial Policy Guardrails (HITL)
+    3. Forensic Incident Triage Engine & Financial Policy Guardrails (HITL)
     4. Spring Batch 5 Nightly Financial Reconciliation
 #>
 
@@ -14,7 +14,7 @@ param(
 
 Write-Host "=================================================================" -ForegroundColor Cyan
 Write-Host "   OMNIFLOW: CLOUD-NATIVE FINANCIAL ORCHESTRATION PLATFORM       " -ForegroundColor Yellow
-Write-Host "   Live Architecture & AI Incident Triage Demonstration          " -ForegroundColor Cyan
+Write-Host "   Live Architecture & Forensic Incident Triage Demonstration   " -ForegroundColor Cyan
 Write-Host "=================================================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -67,8 +67,8 @@ try {
 
 Write-Host ""
 
-# 4. AI Incident Triage & DLQ Poison-Pill Handling
-Write-Host "[4/5] Simulating DLQ Poison-Pill Ingestion & AI Incident Triage..." -ForegroundColor Yellow
+# 4. Forensic Incident Triage & DLQ Poison-Pill Handling
+Write-Host "[4/5] Simulating DLQ Poison-Pill Ingestion & Forensic Incident Triage..." -ForegroundColor Yellow
 $aiBody = @{
     triggerType = "DLQ_POISON_PILL"
     transactionId = "tx-corrupted-whale-01"
@@ -79,13 +79,13 @@ $aiBody = @{
 Write-Host " -> Injecting DLQ incident: High-value transaction (`$45,000.00) with corrupted creditor schema" -ForegroundColor Gray
 try {
     $verdict = Invoke-RestMethod -Uri "$BaseUrl/api/v1/ai/triage" -Method Post -Body $aiBody -ContentType "application/json" -Headers @{"X-API-KEY"="omniflow-master-key"}
-    Write-Host " -> [AI AGENT VERDICT] Incident: $($verdict.incidentId)" -ForegroundColor Cyan
+    Write-Host " -> [FORENSIC TRIAGE VERDICT] Incident: $($verdict.incidentId)" -ForegroundColor Cyan
     Write-Host " -> Root Cause: $($verdict.rootCauseAnalysis)" -ForegroundColor White
     Write-Host " -> Recommended Action: $($verdict.recommendedAction) (Confidence: $([Math]::Round($verdict.confidenceScore * 100))%)" -ForegroundColor White
     Write-Host " -> Requires Human Sign-off (HITL): $($verdict.requiresHumanApproval) (Triggered because amount `$45k > `$10k threshold)" -ForegroundColor Yellow
     Write-Host " -> Diagnostic Tools Executed: $($verdict.toolsExecuted -join ', ')" -ForegroundColor Gray
 } catch {
-    Write-Host " -> [AI AGENT VERDICT] Incident: INCIDENT-8f12cb4a" -ForegroundColor Cyan
+    Write-Host " -> [FORENSIC TRIAGE VERDICT] Incident: INCIDENT-8f12cb4a" -ForegroundColor Cyan
     Write-Host " -> Root Cause: Message schema corruption: creditor account field missing from SQS payload." -ForegroundColor White
     Write-Host " -> Recommended Action: QUARANTINE_POISON_PILL (Confidence: 98%)" -ForegroundColor White
     Write-Host " -> Requires Human Sign-off (HITL): True (Policy: Transaction `$45,000 > `$10,000 threshold)" -ForegroundColor Yellow
