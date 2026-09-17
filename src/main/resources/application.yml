@@ -69,9 +69,7 @@ omniflow:
     api-key: ${API_KEY:omniflow-master-key}
     rate-limit:
       requests-per-minute: 10000
-  ai:
-    # Incident triage engine strategy: deterministic | spring-ai
-    engine: ${OMNIFLOW_AI_ENGINE:deterministic}
+  triage:
     confidence-threshold: 0.85
     human-approval-threshold: 10000.00
 

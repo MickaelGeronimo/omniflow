@@ -12,8 +12,8 @@ public class FinancialPolicyGuardrails {
     private final double confidenceThreshold;
 
     public FinancialPolicyGuardrails(
-            @Value("${omniflow.ai.human-approval-threshold:10000.00}") BigDecimal humanApprovalThreshold,
-            @Value("${omniflow.ai.confidence-threshold:0.85}") double confidenceThreshold) {
+            @Value("${omniflow.triage.human-approval-threshold:${omniflow.ai.human-approval-threshold:10000.00}}") BigDecimal humanApprovalThreshold,
+            @Value("${omniflow.triage.confidence-threshold:${omniflow.ai.confidence-threshold:0.85}}") double confidenceThreshold) {
         this.humanApprovalThreshold = humanApprovalThreshold;
         this.confidenceThreshold = confidenceThreshold;
     }
