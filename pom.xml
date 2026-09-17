@@ -22,7 +22,6 @@
         <testcontainers.version>1.20.1</testcontainers.version>
         <archunit.version>1.3.0</archunit.version>
         <bucket4j.version>8.10.1</bucket4j.version>
-        <spring-ai.version>1.0.0-M3</spring-ai.version>
     </properties>
 
     <dependencyManagement>
@@ -38,13 +37,6 @@
                 <groupId>org.testcontainers</groupId>
                 <artifactId>testcontainers-bom</artifactId>
                 <version>${testcontainers.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-            <dependency>
-                <groupId>org.springframework.ai</groupId>
-                <artifactId>spring-ai-bom</artifactId>
-                <version>${spring-ai.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -128,12 +120,6 @@
             <groupId>com.bucket4j</groupId>
             <artifactId>bucket4j-core</artifactId>
             <version>${bucket4j.version}</version>
-        </dependency>
-
-        <!-- Spring AI Core (AI Incident Triage - Architectural Preview) -->
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-core</artifactId>
         </dependency>
 
         <!-- Testing & Architecture Verification -->

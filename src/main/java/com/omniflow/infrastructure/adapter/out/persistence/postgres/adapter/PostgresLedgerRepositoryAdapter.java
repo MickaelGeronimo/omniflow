@@ -69,6 +69,47 @@ public class PostgresLedgerRepositoryAdapter implements LedgerRepositoryPort {
                     Money.of("1000.00", "USD").amount(),
                     false
             ));
+
+            // Seed Marketplace Demo Accounts (Buyer, Merchant, Take-Rate Fee, Escrow Reserve)
+            AccountId buyer = AccountId.of("OMNI", "0001", "BUYER-01");
+            accountRepo.save(new LedgerAccountJpaEntity(
+                    buyer.toString(),
+                    "Demo Marketplace Buyer",
+                    AccountType.LIABILITY,
+                    "USD",
+                    Money.of("50000.00", "USD").amount(),
+                    false
+            ));
+
+            AccountId mktMerchant = AccountId.of("OMNI", "0001", "MERCHANT-99");
+            accountRepo.save(new LedgerAccountJpaEntity(
+                    mktMerchant.toString(),
+                    "Demo Marketplace Merchant",
+                    AccountType.LIABILITY,
+                    "USD",
+                    Money.of("500.00", "USD").amount(),
+                    false
+            ));
+
+            AccountId feeAccount = AccountId.of("OMNI", "0001", "FEE-001");
+            accountRepo.save(new LedgerAccountJpaEntity(
+                    feeAccount.toString(),
+                    "Platform Take-Rate Revenue Account",
+                    AccountType.REVENUE,
+                    "USD",
+                    Money.zero("USD").amount(),
+                    true
+            ));
+
+            AccountId escrowAccount = AccountId.of("OMNI", "0001", "ESCROW-001");
+            accountRepo.save(new LedgerAccountJpaEntity(
+                    escrowAccount.toString(),
+                    "Dispute & Chargeback Risk Escrow Buffer",
+                    AccountType.LIABILITY,
+                    "USD",
+                    Money.zero("USD").amount(),
+                    true
+            ));
         }
     }
 

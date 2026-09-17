@@ -42,7 +42,11 @@ public class RateLimitingFilter extends OncePerRequestFilter {
             return;
         }
 
-        String clientKey = request.getRemoteAddr();
+        String xForwardedFor = request.getHeader("X-Forwarded-For");
+        String clientKey = (xForwardedFor != null && !xForwardedFor.isBlank())
+                ? xForwardedFor.split(",")[0].trim()
+                : request.getRemoteAddr();
+
         if (buckets.size() > 5000) {
             buckets.clear();
         }

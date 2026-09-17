@@ -11,7 +11,6 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @Primary
-@ConditionalOnProperty(name = "omniflow.ai.engine", havingValue = "deterministic", matchIfMissing = true)
 public class DeterministicIncidentReasoningEngine implements IncidentReasoningEngine {
 
     @Override

@@ -22,7 +22,7 @@ public class AuditAgentController {
         this.reconcileLedgerUseCase = reconcileLedgerUseCase;
     }
 
-    @PostMapping("/ai/triage")
+    @PostMapping({"/incidents/triage", "/ai/triage"})
     public ResponseEntity<AuditTriageUseCase.TriageVerdict> triageIncident(@Valid @RequestBody AuditTriageRequestDto request) {
         AuditTriageUseCase.TriageRequest triageRequest = new AuditTriageUseCase.TriageRequest(
                 request.triggerType(),

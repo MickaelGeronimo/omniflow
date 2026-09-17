@@ -28,9 +28,9 @@ public class TransactionController {
             @Valid @RequestBody SubmitTransactionRequestDto request) {
 
         String key = (idempotencyKeyHeader != null && !idempotencyKeyHeader.isBlank())
-                ? idempotencyKeyHeader
+                ? idempotencyKeyHeader.trim()
                 : (request.idempotencyKey() != null && !request.idempotencyKey().isBlank()
-                    ? request.idempotencyKey()
+                    ? request.idempotencyKey().trim()
                     : "IDEMP-" + UUID.randomUUID());
 
         SubmitTransactionUseCase.SubmitCommand command = new SubmitTransactionUseCase.SubmitCommand(

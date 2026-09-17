@@ -20,8 +20,7 @@ As these tables grow, we ran into a few operational problems:
    * Retries calculate delay as: $\min(300\text{s}, 2 \cdot 2^{\text{retry}}) + \text{jitter}$.
 4. **Pluggable Incident Reasoning:**
    * Application services interact with the `IncidentReasoningEngine` port.
-   * `DeterministicIncidentReasoningEngine` provides local rule evaluation without external calls.
-   * `SpringAiIncidentReasoningPreview` provides an adapter stub for future model integrations.
+   * `DeterministicIncidentReasoningEngine` provides local rule evaluation and root cause analysis without external calls.
 
 ## Consequences & Trade-offs
 * **Bounded Memory:** Reconciliation processes one page at a time instead of loading large result sets into memory.
