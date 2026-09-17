@@ -1,4 +1,4 @@
-package com.omniflow.infrastructure.ai.guardrails;
+package com.omniflow.infrastructure.triage.guardrails;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;

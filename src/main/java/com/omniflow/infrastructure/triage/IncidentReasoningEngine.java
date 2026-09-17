@@ -1,4 +1,4 @@
-package com.omniflow.infrastructure.ai;
+package com.omniflow.infrastructure.triage;
 
 import java.util.Map;
 

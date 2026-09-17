@@ -1,11 +1,11 @@
-package com.omniflow.infrastructure.ai;
+package com.omniflow.infrastructure.triage;
 
 import com.omniflow.application.port.in.AuditTriageUseCase;
 import com.omniflow.application.port.out.AuditEventStorePort;
-import com.omniflow.infrastructure.ai.guardrails.FinancialPolicyGuardrails;
-import com.omniflow.infrastructure.ai.tools.DlqPayloadInspectionTool;
-import com.omniflow.infrastructure.ai.tools.LedgerInspectionTool;
-import com.omniflow.infrastructure.ai.tools.MongoAuditInspectionTool;
+import com.omniflow.infrastructure.triage.guardrails.FinancialPolicyGuardrails;
+import com.omniflow.infrastructure.triage.tools.DlqPayloadInspectionTool;
+import com.omniflow.infrastructure.triage.tools.LedgerInspectionTool;
+import com.omniflow.infrastructure.triage.tools.MongoAuditInspectionTool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;

@@ -1,4 +1,4 @@
-package com.omniflow.infrastructure.ai.tools;
+package com.omniflow.infrastructure.triage.tools;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;

@@ -1,13 +1,13 @@
-package com.omniflow.infrastructure.ai;
+package com.omniflow.infrastructure.triage;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.omniflow.application.port.in.AuditTriageUseCase;
 import com.omniflow.application.port.out.AuditEventStorePort;
 import com.omniflow.application.port.out.LedgerRepositoryPort;
-import com.omniflow.infrastructure.ai.guardrails.FinancialPolicyGuardrails;
-import com.omniflow.infrastructure.ai.tools.DlqPayloadInspectionTool;
-import com.omniflow.infrastructure.ai.tools.LedgerInspectionTool;
-import com.omniflow.infrastructure.ai.tools.MongoAuditInspectionTool;
+import com.omniflow.infrastructure.triage.guardrails.FinancialPolicyGuardrails;
+import com.omniflow.infrastructure.triage.tools.DlqPayloadInspectionTool;
+import com.omniflow.infrastructure.triage.tools.LedgerInspectionTool;
+import com.omniflow.infrastructure.triage.tools.MongoAuditInspectionTool;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

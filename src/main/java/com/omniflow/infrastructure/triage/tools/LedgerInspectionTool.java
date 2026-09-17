@@ -1,4 +1,4 @@
-package com.omniflow.infrastructure.ai.tools;
+package com.omniflow.infrastructure.triage.tools;
 
 import com.omniflow.application.port.out.LedgerRepositoryPort;
 import com.omniflow.domain.ledger.LedgerAccount;

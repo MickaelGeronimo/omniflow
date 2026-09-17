@@ -1,4 +1,4 @@
-package com.omniflow.infrastructure.ai;
+package com.omniflow.infrastructure.triage;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Primary;
